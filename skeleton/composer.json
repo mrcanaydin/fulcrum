@@ -1,0 +1,27 @@
+{
+    "name": "fulcrum/skeleton",
+    "description": "Application skeleton for the Fulcrum headless GraphQL framework",
+    "type": "project",
+    "license": "MIT",
+    "keywords": ["fulcrum", "graphql", "headless", "application", "skeleton"],
+    "require": {
+        "php": "^8.2",
+        "fulcrum/core": "^0.1"
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "src/"
+        }
+    },
+    "scripts": {
+        "post-create-project-cmd": [
+            "@php -r \"file_exists('.env') || copy('.env.example', '.env');\""
+        ]
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "sort-packages": true
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}

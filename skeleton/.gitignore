@@ -1,0 +1,8 @@
+/vendor
+/.env
+/composer.smoke.json
+/composer.smoke.lock
+/storage/*
+!/storage/.gitkeep
+!/storage/app
+!/storage/app/.gitkeep

@@ -1,0 +1,20 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+use Fulcrum\Console\Application as ConsoleApplication;
+use Fulcrum\Foundation\Application;
+
+$autoload = __DIR__ . '/../vendor/autoload.php';
+
+if (!file_exists($autoload)) {
+    $autoload = getcwd() . '/vendor/autoload.php';
+}
+
+require $autoload;
+
+$basePath = getcwd();
+$app = (new Application($basePath))->boot();
+
+exit((new ConsoleApplication($app))->run($argv));
