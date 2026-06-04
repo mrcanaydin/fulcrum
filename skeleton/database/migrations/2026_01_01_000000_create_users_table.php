@@ -13,10 +13,20 @@ return new class implements Migration {
                 id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
                 name VARCHAR(255) NOT NULL,
                 email VARCHAR(255) NOT NULL,
+                avatar VARCHAR(2048) NULL DEFAULT NULL,
+                gender VARCHAR(32) NULL DEFAULT NULL,
+                birthday DATE NULL DEFAULT NULL,
+                email_verified_at TIMESTAMP NULL DEFAULT NULL,
+                email_verification_token VARCHAR(128) NULL DEFAULT NULL,
+                email_verification_expires_at TIMESTAMP NULL DEFAULT NULL,
+                banned_at TIMESTAMP NULL DEFAULT NULL,
+                ban_reason TEXT NULL DEFAULT NULL,
                 created_at TIMESTAMP NULL DEFAULT NULL,
                 updated_at TIMESTAMP NULL DEFAULT NULL,
                 PRIMARY KEY (id),
-                UNIQUE KEY users_email_unique (email)
+                UNIQUE KEY users_email_unique (email),
+                KEY users_email_verification_token_index (email_verification_token),
+                KEY users_banned_at_index (banned_at)
             )'
         );
     }

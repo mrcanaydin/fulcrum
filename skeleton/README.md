@@ -72,7 +72,7 @@ The template ships with a tiny user example built on Fulcrum's model layer:
 - `src/Models/User.php` extends `Fulcrum\Database\Model`.
 - `src/GraphQL/UserType.php` defines the `User` GraphQL object type.
 - `src/GraphQL/UserQuery.php` exposes `user(id:)` and `users(limit:)`.
-- `src/GraphQL/UserMutation.php` exposes `createUser(name:, email:)` with validation and sanitization.
+- `src/GraphQL/UserMutation.php` exposes `createUser`, email verification, and ban/unban mutations with validation and sanitization.
 
 ```bash
 php fulcrum migrate
@@ -81,6 +81,17 @@ curl -X POST http://127.0.0.1:8000/graphql \
   -H 'Content-Type: application/json' \
   -d '{"query":"mutation { createUser(name: \"Ada Lovelace\", email: \"ADA@EXAMPLE.COM\") { id name email } }"}'
 ```
+
+Optional user features are configured in `config/users.php`. Email verification is disabled by default:
+
+```env
+USER_EMAIL_VERIFICATION_ENABLED=false
+USER_EMAIL_VERIFICATION_EXPIRES_MINUTES=60
+```
+
+When enabled, `createUser` and `sendUserEmailVerification(email:)` queue `App\Jobs\SendEmailVerificationJob`. Replace the example log-writing job with your mail provider integration.
+
+User fields include `avatar`, `gender`, `birthday`, `email_verified_at`, `banned_at`, and `ban_reason`. Ban management is available through `banUser(id:, reason:)` and `unbanUser(id:)`.
 
 ## Input Validation
 

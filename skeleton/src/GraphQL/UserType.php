@@ -20,6 +20,24 @@ class UserType
     public string $email;
 
     #[Field(type: 'String')]
+    public ?string $avatar = null;
+
+    #[Field(type: 'String')]
+    public ?string $gender = null;
+
+    #[Field(type: 'String')]
+    public ?string $birthday = null;
+
+    #[Field(type: 'String')]
+    public ?string $email_verified_at = null;
+
+    #[Field(type: 'String')]
+    public ?string $banned_at = null;
+
+    #[Field(type: 'String')]
+    public ?string $ban_reason = null;
+
+    #[Field(type: 'String')]
     public ?string $created_at = null;
 
     #[Field(type: 'String')]

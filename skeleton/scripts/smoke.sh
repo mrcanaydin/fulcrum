@@ -34,7 +34,7 @@ fi
 for attempt in $(seq 1 60); do
     response="$(docker compose exec -T nginx wget -qO- \
         --header='Content-Type: application/json' \
-        --post-data='{"query":"{ health }"}' \
+        --post-data='{"query":"{ health users(limit: 1) { id name email email_verified_at banned_at } }"}' \
         --timeout=5 \
         http://127.0.0.1/graphql || true)"
 

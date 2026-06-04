@@ -28,6 +28,7 @@ class UserFactory extends Factory
         return User::create([
             'name' => $attributes['name'],
             'email' => $attributes['email'],
+            'email_verified_at' => $now,
             'created_at' => $now,
             'updated_at' => $now,
         ])->toArray();
