@@ -33,13 +33,15 @@ Expected response:
 ./scripts/smoke.sh
 ```
 
-The Docker stack runs Nginx, PHP-FPM, and MySQL. Nginx listens on `http://127.0.0.1:8080`.
+The Docker stack runs Nginx, PHP-FPM, Redis, and MySQL. Nginx listens on `http://127.0.0.1:8080`.
 
 ## Structure
 
 - `public/index.php` boots the Fulcrum application.
 - `config/*.php` configures app, API middleware, cache, database, events, GraphQL, logging, and storage.
 - `database/migrations` stores API database migrations.
+- `database/seeders` stores demo-data seeders.
+- `database/factories` stores test/demo data factories.
 - `src/GraphQL/HealthQuery.php` provides the default smoke-test query.
 - `docker/nginx/default.conf` is a reference Nginx config for PHP-FPM.
 
@@ -53,11 +55,21 @@ The Docker stack runs Nginx, PHP-FPM, and MySQL. Nginx listens on `http://127.0.
 
 The skeleton includes an example `users` migration at `database/migrations/2026_01_01_000000_create_users_table.php`.
 
+## Demo Data
+
+```bash
+./vendor/bin/fulcrum make:seeder UserSeeder
+./vendor/bin/fulcrum make:factory UserFactory
+./vendor/bin/fulcrum db:seed
+```
+
+The skeleton includes `database/seeders/DatabaseSeeder.php` and `database/factories/UserFactory.php` as generic examples for seeding API demo data.
+
 ## Example API
 
-The template ships with a tiny user example:
+The template ships with a tiny user example built on Fulcrum's model layer:
 
-- `src/Models/User.php` wraps database access for the `users` table.
+- `src/Models/User.php` extends `Fulcrum\Database\Model`.
 - `src/GraphQL/UserType.php` defines the `User` GraphQL object type.
 - `src/GraphQL/UserQuery.php` exposes `user(id:)` and `users(limit:)`.
 - `src/GraphQL/UserMutation.php` exposes `createUser(name:, email:)` with validation and sanitization.
@@ -74,11 +86,20 @@ curl -X POST http://127.0.0.1:8000/graphql \
 
 Use `Fulcrum\Validation\Validator` inside GraphQL resolvers to validate and explicitly sanitize incoming args before touching your domain logic.
 
+## CRUD Scaffolding
+
+```bash
+./vendor/bin/fulcrum make:model Post
+./vendor/bin/fulcrum make:resource Post title:string published:boolean
+```
+
+`make:resource` generates `src/Models/Post.php`, `src/GraphQL/PostType.php`, `src/GraphQL/PostQuery.php`, and `src/GraphQL/PostMutation.php`. Add the generated GraphQL classes to `config/graphql.php`.
+
 ## API Middleware
 
 `config/api.php` keeps this template API-only: CORS, request IDs, body size limits, trusted proxy IP handling, JSON `Content-Type` checks, and rate limiting are configured without sessions or UI concerns.
 
-Rate limiting uses the configured cache store from `config/cache.php`; the skeleton defaults to file cache under `storage/cache`.
+Rate limiting uses the configured cache store from `config/cache.php`. Local `.env` defaults to file cache, while Docker uses Redis so rate limits work across PHP-FPM workers and future multi-instance deployments.
 
 ## Logging
 

@@ -5,10 +5,16 @@ declare(strict_types=1);
 namespace Fulcrum\Console;
 
 use Fulcrum\Database\DatabaseManager;
+use Fulcrum\Database\Factories\FactoryCreator;
+use Fulcrum\Database\ModelCreator;
 use Fulcrum\Database\Migrations\MigrationCreator;
 use Fulcrum\Database\Migrations\MigrationRepository;
 use Fulcrum\Database\Migrations\Migrator;
+use Fulcrum\Database\Seeders\SeederCreator;
+use Fulcrum\Database\Seeders\SeederRunner;
 use Fulcrum\Foundation\Application as Kernel;
+use Fulcrum\GraphQL\ResourceCreator;
+use Fulcrum\Support\Str;
 use Throwable;
 
 class Application
@@ -25,7 +31,12 @@ class Application
                 'migrate' => $this->migrate(),
                 'migrate:rollback' => $this->rollback(),
                 'migrate:status' => $this->status(),
+                'db:seed' => $this->seed($argv[2] ?? ''),
                 'make:migration' => $this->makeMigration($argv[2] ?? ''),
+                'make:model' => $this->makeModel($argv[2] ?? ''),
+                'make:resource' => $this->makeResource($argv[2] ?? '', array_slice($argv, 3)),
+                'make:seeder' => $this->makeSeeder($argv[2] ?? ''),
+                'make:factory' => $this->makeFactory($argv[2] ?? ''),
                 'help', '--help', '-h' => $this->help(),
                 default => $this->unknown($command),
             };
@@ -95,13 +106,94 @@ class Application
         return 0;
     }
 
+    private function seed(string $class): int
+    {
+        $this->loadPhpFiles($this->factoryPath());
+        $this->loadPhpFiles($this->seederPath());
+        $class = $this->seederClass($class);
+        $ran = (new SeederRunner($this->kernel->container()))->run($class);
+
+        $this->line("Seeded: {$ran}");
+
+        return 0;
+    }
+
+    private function makeSeeder(string $name): int
+    {
+        if ($name === '') {
+            fwrite(STDERR, 'Seeder name is required.' . PHP_EOL);
+            return 1;
+        }
+
+        $path = (new SeederCreator())->create($this->seederPath(), $name);
+        $this->line("Created: {$path}");
+
+        return 0;
+    }
+
+    private function makeModel(string $name): int
+    {
+        if ($name === '') {
+            fwrite(STDERR, 'Model name is required.' . PHP_EOL);
+            return 1;
+        }
+
+        $path = (new ModelCreator())->create($this->modelPath(), $name);
+        $this->line("Created: {$path}");
+
+        return 0;
+    }
+
+    /** @param list<string> $fields */
+    private function makeResource(string $name, array $fields): int
+    {
+        if ($name === '') {
+            fwrite(STDERR, 'Resource name is required.' . PHP_EOL);
+            return 1;
+        }
+
+        if ($fields === []) {
+            fwrite(STDERR, 'At least one field is required, e.g. title:string published:boolean.' . PHP_EOL);
+            return 1;
+        }
+
+        $paths = (new ResourceCreator())->create($this->kernel->basePath(), $name, $fields);
+
+        foreach ($paths as $path) {
+            $this->line("Created: {$path}");
+        }
+
+        $model = (new ModelCreator())->className($name);
+        $this->line("Register App\\GraphQL\\{$model}Type, {$model}Query, and {$model}Mutation in config/graphql.php.");
+
+        return 0;
+    }
+
+    private function makeFactory(string $name): int
+    {
+        if ($name === '') {
+            fwrite(STDERR, 'Factory name is required.' . PHP_EOL);
+            return 1;
+        }
+
+        $path = (new FactoryCreator())->create($this->factoryPath(), $name);
+        $this->line("Created: {$path}");
+
+        return 0;
+    }
+
     private function help(): int
     {
         $this->line('Fulcrum CLI');
         $this->line('  migrate             Run pending migrations');
         $this->line('  migrate:rollback    Roll back the last migration batch');
         $this->line('  migrate:status      Show migration status');
+        $this->line('  db:seed [class]     Run database seeders');
         $this->line('  make:migration name Create a new migration file');
+        $this->line('  make:model name     Create a new model class');
+        $this->line('  make:resource name fields... Create model and GraphQL CRUD classes');
+        $this->line('  make:seeder name    Create a new seeder class');
+        $this->line('  make:factory name   Create a new factory class');
 
         return 0;
     }
@@ -126,6 +218,43 @@ class Application
     private function migrationPath(): string
     {
         return $this->kernel->basePath('database/migrations');
+    }
+
+    private function modelPath(): string
+    {
+        return $this->kernel->basePath('src/Models');
+    }
+
+    private function seederPath(): string
+    {
+        return $this->kernel->basePath('database/seeders');
+    }
+
+    private function factoryPath(): string
+    {
+        return $this->kernel->basePath('database/factories');
+    }
+
+    private function seederClass(string $class): string
+    {
+        if ($class === '') {
+            return 'Database\\Seeders\\DatabaseSeeder';
+        }
+
+        if (str_contains($class, '\\')) {
+            return $class;
+        }
+
+        $class = Str::pascal($class);
+
+        return 'Database\\Seeders\\' . (str_ends_with($class, 'Seeder') ? $class : $class . 'Seeder');
+    }
+
+    private function loadPhpFiles(string $path): void
+    {
+        foreach (glob(rtrim($path, '/') . '/*.php') ?: [] as $file) {
+            require_once $file;
+        }
     }
 
     private function line(string $message): void

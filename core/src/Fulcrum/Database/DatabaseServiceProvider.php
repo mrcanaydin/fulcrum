@@ -18,6 +18,6 @@ class DatabaseServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        // Boot actions, e.g., setting up a global DB facade if needed.
+        Model::resolveDatabaseUsing(fn (): DatabaseManager => $this->container->make(DatabaseManager::class));
     }
 }

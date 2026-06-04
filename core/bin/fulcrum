@@ -6,15 +6,27 @@ declare(strict_types=1);
 use Fulcrum\Console\Application as ConsoleApplication;
 use Fulcrum\Foundation\Application;
 
-$autoload = __DIR__ . '/../vendor/autoload.php';
+$autoload = $_composer_autoload_path ?? getcwd() . '/vendor/autoload.php';
 
 if (!file_exists($autoload)) {
-    $autoload = getcwd() . '/vendor/autoload.php';
+    $autoload = __DIR__ . '/../vendor/autoload.php';
 }
 
 require $autoload;
 
 $basePath = getcwd();
+if ($basePath === false) {
+    $basePath = dirname(__DIR__, 3);
+}
+
+$arguments = [];
+$serverArguments = $_SERVER['argv'] ?? [];
+if (is_array($serverArguments)) {
+    foreach ($serverArguments as $argument) {
+        $arguments[] = is_scalar($argument) ? (string) $argument : '';
+    }
+}
+
 $app = (new Application($basePath))->boot();
 
-exit((new ConsoleApplication($app))->run($argv));
+exit((new ConsoleApplication($app))->run($arguments));

@@ -6,8 +6,10 @@ namespace Fulcrum\Cache;
 
 use Fulcrum\Cache\Stores\ArrayStore;
 use Fulcrum\Cache\Stores\FileStore;
+use Fulcrum\Cache\Stores\RedisStore;
 use Fulcrum\Foundation\Config;
 use InvalidArgumentException;
+use Predis\Client;
 
 class CacheManager
 {
@@ -56,8 +58,22 @@ class CacheManager
         return match ($driver) {
             'array' => new ArrayStore(),
             'file' => new FileStore($this->stringConfig($config, 'path', $this->defaultFilePath())),
+            'redis' => new RedisStore($this->redisClient($config), $this->stringConfig($config, 'prefix', 'fulcrum:')),
             default => throw new InvalidArgumentException("Unsupported cache driver [{$driver}]."),
         };
+    }
+
+    /** @param array<string, mixed> $config */
+    private function redisClient(array $config): Client
+    {
+        return new Client([
+            'scheme' => 'tcp',
+            'host' => $this->stringConfig($config, 'host', '127.0.0.1'),
+            'port' => $this->intConfig($config, 'port', 6379),
+            'database' => $this->intConfig($config, 'database', 0),
+            'username' => $this->nullableStringConfig($config, 'username'),
+            'password' => $this->nullableStringConfig($config, 'password'),
+        ]);
     }
 
     /** @param array<string, mixed> $config */
@@ -66,6 +82,24 @@ class CacheManager
         $value = $config[$key] ?? $default;
 
         return is_string($value) && $value !== '' ? $value : $default;
+    }
+
+    /** @param array<string, mixed> $config */
+    private function nullableStringConfig(array $config, string $key): ?string
+    {
+        $value = $config[$key] ?? null;
+
+        return is_string($value) && $value !== '' ? $value : null;
+    }
+
+    /** @param array<string, mixed> $config */
+    private function intConfig(array $config, string $key, int $default): int
+    {
+        $value = $config[$key] ?? $default;
+
+        return is_int($value) || is_string($value) || is_float($value)
+            ? (int) $value
+            : $default;
     }
 
     private function defaultFilePath(): string

@@ -10,6 +10,8 @@
     },
     "autoload": {
         "psr-4": {
+            "Database\\Factories\\": "database/factories/",
+            "Database\\Seeders\\": "database/seeders/",
             "App\\": "src/"
         }
     },

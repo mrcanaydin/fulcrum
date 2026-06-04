@@ -14,7 +14,6 @@ use Fulcrum\Validation\Validator;
 class UserMutation
 {
     public function __construct(
-        private readonly User $users,
         private readonly Validator $validator,
         private readonly EventDispatcher $events,
     ) {}
@@ -36,10 +35,12 @@ class UserMutation
             ]
         );
 
-        $user = $this->users->create([
+        $user = User::create([
             'name' => $input['name'],
             'email' => $input['email'],
-        ]);
+            'created_at' => gmdate('Y-m-d H:i:s'),
+            'updated_at' => gmdate('Y-m-d H:i:s'),
+        ])->toArray();
 
         $this->events->dispatch(new UserCreated((string) $user['id'], (string) $user['email']));
 

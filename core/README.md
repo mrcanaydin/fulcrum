@@ -49,6 +49,9 @@ Supported drivers:
 
 - `array` for process-local testing and ephemeral values
 - `file` for simple durable cache storage
+- `redis` via `predis/predis` for shared cache and rate limiting
+
+Applications choose their own cache keys and invalidation strategy inside their models, resolvers, and domain services.
 
 ## Logging
 
@@ -89,11 +92,49 @@ Fulcrum exposes a small CLI for app maintenance:
 ./vendor/bin/fulcrum migrate:rollback
 ./vendor/bin/fulcrum migrate:status
 ./vendor/bin/fulcrum make:migration create_api_tokens
+./vendor/bin/fulcrum make:model Post
+./vendor/bin/fulcrum make:resource Post title:string published:boolean
+./vendor/bin/fulcrum make:seeder UserSeeder
+./vendor/bin/fulcrum make:factory UserFactory
+./vendor/bin/fulcrum db:seed
 ```
 
 Migrations live in `database/migrations` and return an implementation of `Fulcrum\Database\Migrations\Migration`.
 
 Fulcrum's auth package includes an executable `personal_access_tokens` migration at `src/Fulcrum/Auth/Migrations/create_personal_access_tokens_table.php` for applications that enable token auth tables.
+
+Seeders live in `database/seeders`, implement `Fulcrum\Database\Seeders\Seeder`, and default to `Database\Seeders\DatabaseSeeder`. Factories live in `database/factories` and extend `Fulcrum\Database\Factories\Factory`.
+
+## Models & Relationships
+
+Fulcrum includes a lightweight, Laravel-inspired model layer for API code that should not need raw SQL.
+
+```php
+use App\Models\User;
+
+$user = User::find(1);
+$users = User::query()->where('active', true)->latest()->limit(20)->toArray();
+$created = User::create(['name' => 'Ada', 'email' => 'ada@example.com']);
+```
+
+Models can define relationships:
+
+```php
+use Fulcrum\Database\Model;
+use Fulcrum\Database\Relations\HasMany;
+
+class User extends Model
+{
+    protected string $table = 'users';
+
+    public function posts(): HasMany
+    {
+        return $this->hasMany(Post::class, 'user_id');
+    }
+}
+```
+
+`make:resource` creates a model plus GraphQL type/query/mutation CRUD scaffolding. Register the generated GraphQL classes in `config/graphql.php`.
 
 ## Validation & Sanitization
 

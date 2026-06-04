@@ -6,6 +6,7 @@ use Fulcrum\Cache\CacheManager;
 use Fulcrum\Cache\CacheServiceProvider;
 use Fulcrum\Cache\Stores\ArrayStore;
 use Fulcrum\Cache\Stores\FileStore;
+use Fulcrum\Cache\Stores\RedisStore;
 use Fulcrum\Container\Container;
 use Fulcrum\Foundation\Config;
 
@@ -50,6 +51,20 @@ it('resolves and caches configured stores', function () {
 
     $store->clear();
     rmdir($root);
+});
+
+it('resolves configured redis stores without connecting eagerly', function () {
+    $config = new Config(__DIR__ . '/missing');
+    $config->set('cache.default', 'redis');
+    $config->set('cache.stores.redis', [
+        'driver' => 'redis',
+        'host' => '127.0.0.1',
+        'port' => 6379,
+        'database' => 0,
+        'prefix' => 'fulcrum-test:',
+    ]);
+
+    expect((new CacheManager($config))->store())->toBeInstanceOf(RedisStore::class);
 });
 
 it('registers the cache manager in the container', function () {
