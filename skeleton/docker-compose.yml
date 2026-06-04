@@ -40,6 +40,8 @@ services:
       LOG_FILE_PATH: /var/www/html/storage/logs/fulcrum.log
       MAIL_MAILER: log
       MAIL_LOG_PATH: /var/www/html/storage/logs/mail.log
+      NOTIFICATION_CHANNEL: log
+      NOTIFICATION_LOG_PATH: /var/www/html/storage/logs/notifications.log
     depends_on:
       mysql:
         condition: service_healthy

@@ -18,16 +18,21 @@ class QueueWorker
 
     private readonly JobRunner $runner;
 
-    public function work(int $maxJobs = 1, int $sleepSeconds = 1, int $maxAttempts = 3): int
+    public function work(int $maxJobs = 0, int $sleepSeconds = 1, int $maxAttempts = 3): int
     {
         $processed = 0;
 
-        while ($processed < max(1, $maxJobs)) {
+        while ($maxJobs <= 0 || $processed < $maxJobs) {
             $job = $this->queues->connection()->pop();
 
             if (!$job instanceof QueuedJob) {
                 sleep(max(0, $sleepSeconds));
-                break;
+
+                if ($maxJobs > 0) {
+                    break;
+                }
+
+                continue;
             }
 
             try {

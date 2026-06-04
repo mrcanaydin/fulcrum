@@ -71,3 +71,18 @@ it('processes database queued jobs', function () {
         ->and($GLOBALS['fulcrum_test_queue'])->toBe(['new'])
         ->and($db->table('jobs')->get()->all())->toBe([]);
 });
+
+it('stops bounded workers when no job is available', function () {
+    $db = queueTestDatabase();
+    $config = new Config(__DIR__ . '/missing');
+    $config->set('queue.default', 'database');
+    $config->set('queue.connections.database', [
+        'driver' => 'database',
+        'table' => 'jobs',
+        'queue' => 'default',
+    ]);
+
+    $processed = (new QueueWorker(new QueueManager($config, $db)))->work(maxJobs: 1, sleepSeconds: 0);
+
+    expect($processed)->toBe(0);
+});

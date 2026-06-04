@@ -195,7 +195,7 @@ class Application
         $this->line('  migrate:status      Show migration status');
         $this->line('  db:seed [class]     Run database seeders');
         $this->line('  schedule:run        Run due scheduled commands');
-        $this->line('  queue:work          Process queued jobs');
+        $this->line('  queue:work          Listen for queued jobs');
         $this->line('  make:migration name Create a new migration file');
         $this->line('  make:model name     Create a new model class');
         $this->line('  make:resource name fields... Create model and GraphQL CRUD classes');
@@ -255,7 +255,7 @@ class Application
         }
 
         $processed = $worker->work(
-            (int) $input->stringOption('max-jobs', '1'),
+            (int) $input->stringOption('max-jobs', '0'),
             (int) $input->stringOption('sleep', '1'),
             (int) $input->stringOption('tries', '3'),
         );

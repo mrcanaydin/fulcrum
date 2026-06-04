@@ -90,6 +90,30 @@ Supported transports:
 - `log` writes JSON-line email payloads for local development
 - `smtp` sends directly through a configured SMTP server
 
+## Notifications & Message Hooks
+
+Fulcrum notifications are queue-aware and designed for API-side push workflows.
+
+```php
+use Fulcrum\Notifications\Notification;
+use Fulcrum\Notifications\NotificationManager;
+
+$notifications = $container->make(NotificationManager::class);
+$notifications->send(new Notification(
+    to: 'user:123',
+    title: 'New message',
+    body: 'Ada sent you a direct message.',
+    data: ['conversation_id' => 'abc'],
+));
+```
+
+Supported transports:
+
+- `log` writes JSON-line notification payloads for local development
+- `webhook` posts JSON payloads to an external push gateway, such as an FCM/APNs service
+
+Applications can also configure event hooks in `notifications.hooks` and `notifications.mail_hooks`. Hook values support placeholders from public event properties, for example `{userId}` and `{email}`. This keeps GraphQL resolvers thin: dispatch a domain event, then decide in config which actions send email or push notifications.
+
 ## Events
 
 Fulcrum includes a synchronous, container-aware event dispatcher for API domain hooks.
@@ -119,7 +143,7 @@ php fulcrum make:seeder UserSeeder
 php fulcrum make:factory UserFactory
 php fulcrum db:seed
 php fulcrum schedule:run
-php fulcrum queue:work --max-jobs=10
+php fulcrum queue:work
 ```
 
 Migrations live in `database/migrations` and return an implementation of `Fulcrum\Database\Migrations\Migration`.
@@ -217,6 +241,8 @@ Run due schedules from cron:
 ```
 
 Jobs implement `Fulcrum\Queue\Job` and define a `handle()` method. The handler is container-aware, so services such as `MailManager` can be type-hinted directly. Supported queue drivers are `sync` and `database`.
+
+`php fulcrum queue:work` listens continuously. Use `--max-jobs=1` or another positive limit for smoke tests, CI, or one-shot cron-style processing.
 
 ## Validation & Sanitization
 

@@ -143,17 +143,37 @@ MAIL_ENCRYPTION=tls
 MAIL_FROM_ADDRESS=no-reply@example.com
 ```
 
+## Notifications & Hooks
+
+`config/notifications.php` defines queued push-style notifications and queued email hooks for domain events. This lets API developers choose exactly which actions trigger messages without putting provider code inside GraphQL resolvers.
+
+The skeleton includes disabled examples for `App\Events\UserCreated`:
+
+```env
+USER_WELCOME_EMAIL_ENABLED=true
+USER_WELCOME_PUSH_ENABLED=true
+```
+
+Notification channels:
+
+- `log` writes JSON-line push payloads to `storage/logs/notifications.log` for development.
+- `webhook` posts JSON payloads to `NOTIFICATION_WEBHOOK_URL`, useful for FCM/APNs gateway services.
+
+Hook placeholders use public event properties, for example `{userId}` and `{email}` from `App\Events\UserCreated`.
+
 ## Commands, Scheduler & Queues
 
 Register app commands in `config/console.php`, scheduled tasks in `config/schedule.php`, and queue settings in `config/queue.php`.
 
 ```bash
 php fulcrum api-data:fetch --sort=new
-php fulcrum queue:work --max-jobs=10
+php fulcrum queue:work
 php fulcrum schedule:run
 ```
 
 The example `App\Console\FetchApiDataCommand` dispatches `App\Jobs\FetchApiDataJob`. Local `.env` defaults to the `sync` queue driver; Docker uses the `database` driver and the included `jobs` migration.
+
+`php fulcrum queue:work` keeps listening for new jobs. Use `--max-jobs=1` for smoke tests or one-shot processing.
 
 ## Events
 
