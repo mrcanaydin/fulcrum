@@ -109,6 +109,8 @@ class MongoGrammar implements GrammarInterface
                 }
             } elseif ($where['type'] === 'In') {
                 $filter[$where['column']] = ['$in' => array_fill(0, count($where['values']), '?')];
+            } elseif ($where['type'] === 'Null') {
+                $filter[$where['column']] = null;
             }
         }
 

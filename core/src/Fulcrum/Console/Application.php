@@ -14,6 +14,9 @@ use Fulcrum\Database\Seeders\SeederCreator;
 use Fulcrum\Database\Seeders\SeederRunner;
 use Fulcrum\Foundation\Application as Kernel;
 use Fulcrum\GraphQL\ResourceCreator;
+use Fulcrum\Queue\QueueWorker;
+use Fulcrum\Schedule\ScheduledCommand;
+use Fulcrum\Schedule\ScheduleRunner;
 use Fulcrum\Support\Str;
 use Throwable;
 
@@ -32,13 +35,15 @@ class Application
                 'migrate:rollback' => $this->rollback(),
                 'migrate:status' => $this->status(),
                 'db:seed' => $this->seed($argv[2] ?? ''),
+                'schedule:run' => $this->runSchedule(),
+                'queue:work' => $this->workQueue(array_slice($argv, 2)),
                 'make:migration' => $this->makeMigration($argv[2] ?? ''),
                 'make:model' => $this->makeModel($argv[2] ?? ''),
                 'make:resource' => $this->makeResource($argv[2] ?? '', array_slice($argv, 3)),
                 'make:seeder' => $this->makeSeeder($argv[2] ?? ''),
                 'make:factory' => $this->makeFactory($argv[2] ?? ''),
                 'help', '--help', '-h' => $this->help(),
-                default => $this->unknown($command),
+                default => $this->runAppCommand($command, array_slice($argv, 2)),
             };
         } catch (Throwable $e) {
             fwrite(STDERR, "Error: {$e->getMessage()}" . PHP_EOL);
@@ -189,11 +194,18 @@ class Application
         $this->line('  migrate:rollback    Roll back the last migration batch');
         $this->line('  migrate:status      Show migration status');
         $this->line('  db:seed [class]     Run database seeders');
+        $this->line('  schedule:run        Run due scheduled commands');
+        $this->line('  queue:work          Process queued jobs');
         $this->line('  make:migration name Create a new migration file');
         $this->line('  make:model name     Create a new model class');
         $this->line('  make:resource name fields... Create model and GraphQL CRUD classes');
         $this->line('  make:seeder name    Create a new seeder class');
         $this->line('  make:factory name   Create a new factory class');
+
+        $registry = $this->commandRegistry();
+        foreach ($registry->all() as $command) {
+            $this->line('  ' . str_pad($command->name(), 20) . $command->description());
+        }
 
         return 0;
     }
@@ -202,6 +214,84 @@ class Application
     {
         fwrite(STDERR, "Unknown command [{$command}]." . PHP_EOL);
         return 1;
+    }
+
+    /** @param list<string> $tokens */
+    private function runAppCommand(string $command, array $tokens): int
+    {
+        $registry = $this->commandRegistry();
+
+        if (!$registry->has($command)) {
+            return $this->unknown($command);
+        }
+
+        return $registry->run($command, $tokens);
+    }
+
+    private function runSchedule(): int
+    {
+        $events = $this->scheduledEvents();
+        $ran = (new ScheduleRunner($this->kernel))->run($events);
+
+        foreach ($ran as $command) {
+            $this->line("Scheduled: {$command}");
+        }
+
+        if ($ran === []) {
+            $this->line('No scheduled commands are due.');
+        }
+
+        return 0;
+    }
+
+    /** @param list<string> $tokens */
+    private function workQueue(array $tokens): int
+    {
+        $input = new Input($tokens);
+        $worker = $this->kernel->container()->make(QueueWorker::class);
+
+        if (!$worker instanceof QueueWorker) {
+            throw new \RuntimeException('Queue worker is not registered.');
+        }
+
+        $processed = $worker->work(
+            (int) $input->stringOption('max-jobs', '1'),
+            (int) $input->stringOption('sleep', '1'),
+            (int) $input->stringOption('tries', '3'),
+        );
+
+        $this->line("Processed jobs: {$processed}");
+
+        return 0;
+    }
+
+    /** @return list<ScheduledCommand> */
+    private function scheduledEvents(): array
+    {
+        $path = $this->kernel->basePath('config/schedule.php');
+
+        if (!file_exists($path)) {
+            return [];
+        }
+
+        $events = require $path;
+
+        if (!is_array($events)) {
+            return [];
+        }
+
+        return array_values(array_filter($events, fn (mixed $event): bool => $event instanceof ScheduledCommand));
+    }
+
+    private function commandRegistry(): CommandRegistry
+    {
+        $registry = $this->kernel->container()->make(CommandRegistry::class);
+
+        if (!$registry instanceof CommandRegistry) {
+            throw new \RuntimeException('Command registry is not registered.');
+        }
+
+        return $registry;
     }
 
     private function migrator(): Migrator

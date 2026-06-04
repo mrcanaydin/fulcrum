@@ -108,6 +108,8 @@ class SqlGrammar implements GrammarInterface
             } elseif ($where['type'] === 'In') {
                 $placeholders = implode(', ', array_fill(0, count($where['values']), '?'));
                 $sql[] = "{$boolean}{$where['column']} IN ({$placeholders})";
+            } elseif ($where['type'] === 'Null') {
+                $sql[] = "{$boolean}{$where['column']} IS NULL";
             }
         }
 

@@ -44,11 +44,13 @@
     },
     "extra": {
         "fulcrum-providers": [
+            "Fulcrum\\Console\\ConsoleServiceProvider",
             "Fulcrum\\Cache\\CacheServiceProvider",
             "Fulcrum\\Logging\\LoggingServiceProvider",
             "Fulcrum\\Events\\EventServiceProvider",
             "Fulcrum\\Database\\DatabaseServiceProvider",
             "Fulcrum\\Auth\\AuthServiceProvider",
+            "Fulcrum\\Queue\\QueueServiceProvider",
             "Fulcrum\\GraphQL\\GraphQLServiceProvider",
             "Fulcrum\\Storage\\StorageServiceProvider",
             "Fulcrum\\Validation\\ValidationServiceProvider"

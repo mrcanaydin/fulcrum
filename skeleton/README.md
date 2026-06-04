@@ -111,6 +111,18 @@ Rate limiting uses the configured cache store from `config/cache.php`. Local `.e
 
 `config/logging.php` defaults to JSON-line file logs at `storage/logs/fulcrum.log`. The global exception handler reports uncaught exceptions before returning API-safe JSON errors.
 
+## Commands, Scheduler & Queues
+
+Register app commands in `config/console.php`, scheduled tasks in `config/schedule.php`, and queue settings in `config/queue.php`.
+
+```bash
+./vendor/bin/fulcrum api-data:fetch --sort=new
+./vendor/bin/fulcrum queue:work --max-jobs=10
+./vendor/bin/fulcrum schedule:run
+```
+
+The example `App\Console\FetchApiDataCommand` dispatches `App\Jobs\FetchApiDataJob`. Local `.env` defaults to the `sync` queue driver; Docker uses the `database` driver and the included `jobs` migration.
+
 ## Events
 
 `config/events.php` registers synchronous domain event listeners. Use it for API-side hooks such as audit logs, cache invalidation, and post-mutation workflows.

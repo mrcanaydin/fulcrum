@@ -80,6 +80,17 @@ class QueryBuilder
         return $this;
     }
 
+    public function whereNull(string $column, string $boolean = 'and'): static
+    {
+        $this->components['wheres'][] = [
+            'type' => 'Null',
+            'column' => $column,
+            'boolean' => $boolean,
+        ];
+
+        return $this;
+    }
+
     public function join(string $table, string $first, string $operator, string $second, string $type = 'inner'): static
     {
         $this->components['joins'][] = [

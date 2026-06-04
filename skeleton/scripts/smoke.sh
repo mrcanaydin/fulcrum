@@ -22,6 +22,8 @@ find storage/app storage/cache storage/logs -type d -exec chmod 0777 {} +
 docker compose up -d --build --force-recreate
 docker compose exec -T php ./vendor/bin/fulcrum migrate
 docker compose exec -T php ./vendor/bin/fulcrum db:seed
+docker compose exec -T php ./vendor/bin/fulcrum api-data:fetch --sort=new
+docker compose exec -T php ./vendor/bin/fulcrum queue:work --max-jobs=1 --sleep=0
 
 preview_response="$(docker compose exec -T nginx wget -qO- --timeout=5 http://127.0.0.1/ || true)"
 if ! printf '%s' "$preview_response" | grep -q '"mode":"headless"'; then

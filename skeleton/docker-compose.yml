@@ -29,6 +29,9 @@ services:
       STORAGE_LOCAL_ROOT: /var/www/html/storage/app
       CACHE_STORE: redis
       CACHE_FILE_PATH: /var/www/html/storage/cache
+      QUEUE_CONNECTION: database
+      QUEUE_JOBS_TABLE: jobs
+      QUEUE_NAME: default
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_CACHE_DB: 0

@@ -97,6 +97,8 @@ Fulcrum exposes a small CLI for app maintenance:
 ./vendor/bin/fulcrum make:seeder UserSeeder
 ./vendor/bin/fulcrum make:factory UserFactory
 ./vendor/bin/fulcrum db:seed
+./vendor/bin/fulcrum schedule:run
+./vendor/bin/fulcrum queue:work --max-jobs=10
 ```
 
 Migrations live in `database/migrations` and return an implementation of `Fulcrum\Database\Migrations\Migration`.
@@ -148,6 +150,52 @@ GraphQL resolvers also receive a request-scoped DataLoader registry via `Request
 $loader = $context->loaders()->getOrRegister('users.by_id', fn (array $ids) => $usersById);
 $user = $loader->load($id);
 ```
+
+## Commands, Scheduling & Queues
+
+Applications can register Laravel-style console commands in `config/console.php`:
+
+```php
+return [
+    'commands' => [
+        App\Console\FetchApiDataCommand::class,
+    ],
+];
+```
+
+Commands extend `Fulcrum\Console\Command`:
+
+```php
+class FetchApiDataCommand extends Command
+{
+    protected string $signature = 'api-data:fetch';
+
+    public function handle(): int
+    {
+        $sort = $this->stringOption('sort', 'new');
+        // Dispatch jobs, call services, import data.
+        return self::SUCCESS;
+    }
+}
+```
+
+Schedules live in `config/schedule.php`:
+
+```php
+use Fulcrum\Schedule\Schedule;
+
+return [
+    Schedule::command('api-data:fetch --sort=new')->everyFiveMinutes(),
+];
+```
+
+Run due schedules from cron:
+
+```bash
+* * * * * cd /path/to/app && php vendor/bin/fulcrum schedule:run
+```
+
+Jobs implement `Fulcrum\Queue\Job` and can be dispatched through `QueueManager`. Supported queue drivers are `sync` and `database`.
 
 ## Validation & Sanitization
 
