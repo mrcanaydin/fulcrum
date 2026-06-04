@@ -18,6 +18,13 @@ mkdir -p storage/app storage/cache storage/logs
 find storage/app storage/cache storage/logs -type d -exec chmod 0777 {} +
 
 docker compose up -d --build
+docker compose exec -T php ./vendor/bin/fulcrum migrate
+
+preview_response="$(docker compose exec -T nginx wget -qO- --timeout=5 http://127.0.0.1/ || true)"
+if ! printf '%s' "$preview_response" | grep -q '"mode":"headless"'; then
+    docker compose logs
+    exit 1
+fi
 
 for attempt in $(seq 1 60); do
     response="$(docker compose exec -T nginx wget -qO- \

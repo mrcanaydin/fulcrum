@@ -16,6 +16,8 @@ cd myapp
 php -S 127.0.0.1:8000 -t public
 ```
 
+Browser previews can open `GET /` for API metadata. Infrastructure probes can use `GET /health`. GraphQL operations execute through `POST /graphql`.
+
 ## Storage
 
 Fulcrum ships with Flysystem 3-backed storage disks.
@@ -90,6 +92,8 @@ Fulcrum exposes a small CLI for app maintenance:
 ```
 
 Migrations live in `database/migrations` and return an implementation of `Fulcrum\Database\Migrations\Migration`.
+
+Fulcrum's auth package includes an executable `personal_access_tokens` migration at `src/Fulcrum/Auth/Migrations/create_personal_access_tokens_table.php` for applications that enable token auth tables.
 
 ## Validation & Sanitization
 

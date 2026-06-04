@@ -65,6 +65,11 @@ final class Request
         return $this->method() === 'POST';
     }
 
+    public function isGet(): bool
+    {
+        return $this->method() === 'GET';
+    }
+
     public function isOptions(): bool
     {
         return $this->method() === 'OPTIONS';

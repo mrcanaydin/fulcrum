@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Fulcrum\Foundation\Config;
 use Fulcrum\Cache\CacheManager;
+use Fulcrum\Container\Container;
 use Fulcrum\Routing\Middleware\BodySizeLimitMiddleware;
 use Fulcrum\Routing\Middleware\CorsMiddleware;
 use Fulcrum\Routing\Middleware\JsonContentTypeMiddleware;
@@ -12,6 +13,7 @@ use Fulcrum\Routing\Middleware\RateLimitMiddleware;
 use Fulcrum\Routing\Middleware\RequestIdMiddleware;
 use Fulcrum\Routing\Request;
 use Fulcrum\Routing\Response;
+use Fulcrum\Routing\Router;
 
 function middlewareConfig(): Config
 {
@@ -99,4 +101,32 @@ it('runs middleware in order around the handler', function () {
     );
 
     expect($response->getHeaders()['X-Request-Id'])->toBe('req-456');
+});
+
+it('serves json metadata and health endpoints for api previews', function () {
+    $container = new Container();
+    $config = middlewareConfig();
+    $config->set('cache.default', 'array');
+    $container->instance(Config::class, $config);
+
+    $router = new Router($container);
+    $root = $router->handle(new Request('GET', '/', [], []));
+    $health = $router->handle(new Request('GET', '/health', [], []));
+
+    expect($root->getStatusCode())->toBe(200)
+        ->and($root->getData()['mode'])->toBe('headless')
+        ->and($health->getStatusCode())->toBe(200)
+        ->and($health->getData())->toBe(['status' => 'ok']);
+});
+
+it('keeps graphql execution post-only', function () {
+    $container = new Container();
+    $config = middlewareConfig();
+    $config->set('cache.default', 'array');
+    $container->instance(Config::class, $config);
+
+    $response = (new Router($container))->handle(new Request('GET', '/graphql', [], []));
+
+    expect($response->getStatusCode())->toBe(405)
+        ->and($response->getHeaders()['Allow'])->toBe('POST, OPTIONS');
 });

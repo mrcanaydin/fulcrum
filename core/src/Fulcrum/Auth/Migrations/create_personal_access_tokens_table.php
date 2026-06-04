@@ -1,21 +1,34 @@
 <?php
 
-/**
- * Migration schema for personal_access_tokens table.
- *
- * CREATE TABLE `personal_access_tokens` (
- *   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
- *   `tokenable_type` varchar(255) NOT NULL,
- *   `tokenable_id` varchar(255) NOT NULL,
- *   `name` varchar(255) NOT NULL,
- *   `token` varchar(64) NOT NULL,
- *   `abilities` text,
- *   `last_used_at` timestamp NULL DEFAULT NULL,
- *   `expires_at` timestamp NULL DEFAULT NULL,
- *   `created_at` timestamp NULL DEFAULT NULL,
- *   `updated_at` timestamp NULL DEFAULT NULL,
- *   PRIMARY KEY (`id`),
- *   UNIQUE KEY `personal_access_tokens_token_unique` (`token`),
- *   KEY `personal_access_tokens_tokenable_type_tokenable_id_index` (`tokenable_type`,`tokenable_id`)
- * ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
- */
+declare(strict_types=1);
+
+use Fulcrum\Database\ConnectionInterface;
+use Fulcrum\Database\Migrations\Migration;
+
+return new class implements Migration {
+    public function up(ConnectionInterface $db): void
+    {
+        $db->statement(
+            'CREATE TABLE IF NOT EXISTS personal_access_tokens (
+                id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                tokenable_type VARCHAR(255) NOT NULL,
+                tokenable_id VARCHAR(255) NOT NULL,
+                name VARCHAR(255) NOT NULL,
+                token VARCHAR(64) NOT NULL,
+                abilities TEXT NULL,
+                last_used_at TIMESTAMP NULL DEFAULT NULL,
+                expires_at TIMESTAMP NULL DEFAULT NULL,
+                created_at TIMESTAMP NULL DEFAULT NULL,
+                updated_at TIMESTAMP NULL DEFAULT NULL,
+                PRIMARY KEY (id),
+                UNIQUE KEY personal_access_tokens_token_unique (token),
+                KEY personal_access_tokens_tokenable_index (tokenable_type, tokenable_id)
+            )'
+        );
+    }
+
+    public function down(ConnectionInterface $db): void
+    {
+        $db->statement('DROP TABLE IF EXISTS personal_access_tokens');
+    }
+};

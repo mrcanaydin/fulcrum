@@ -20,8 +20,8 @@ use Fulcrum\Routing\Middleware\RequestIdMiddleware;
 /**
  * Minimalist router.
  *
- * Fulcrum exposes a single entry point: POST /graphql
- * Every other path or method receives a descriptive JSON error.
+ * Fulcrum exposes POST /graphql plus JSON metadata and health endpoints
+ * for API previews and infrastructure probes.
  *
  * Cross-cutting API concerns are handled by the configured middleware pipeline.
  */
@@ -41,6 +41,22 @@ class Router
 
     private function route(Request $request): Response
     {
+        if ($request->isGet() && $request->path() === '/') {
+            return Response::json([
+                'name' => 'Fulcrum',
+                'mode' => 'headless',
+                'status' => 'ok',
+                'endpoints' => [
+                    'graphql' => '/graphql',
+                    'health' => '/health',
+                ],
+            ]);
+        }
+
+        if ($request->isGet() && $request->path() === '/health') {
+            return Response::json(['status' => 'ok']);
+        }
+
         if ($request->path() !== '/graphql') {
             return Response::notFound();
         }

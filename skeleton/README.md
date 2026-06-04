@@ -11,6 +11,8 @@ cp .env.example .env
 php -S 127.0.0.1:8000 -t public
 ```
 
+Open `http://127.0.0.1:8000/` in a browser preview to see JSON API metadata. This template is headless, so there is no HTML UI. GraphQL operations are sent with `POST /graphql`.
+
 Smoke query:
 
 ```bash
@@ -49,6 +51,25 @@ The Docker stack runs Nginx, PHP-FPM, and MySQL. Nginx listens on `http://127.0.
 ./vendor/bin/fulcrum migrate:status
 ```
 
+The skeleton includes an example `users` migration at `database/migrations/2026_01_01_000000_create_users_table.php`.
+
+## Example API
+
+The template ships with a tiny user example:
+
+- `src/Models/User.php` wraps database access for the `users` table.
+- `src/GraphQL/UserType.php` defines the `User` GraphQL object type.
+- `src/GraphQL/UserQuery.php` exposes `user(id:)` and `users(limit:)`.
+- `src/GraphQL/UserMutation.php` exposes `createUser(name:, email:)` with validation and sanitization.
+
+```bash
+./vendor/bin/fulcrum migrate
+
+curl -X POST http://127.0.0.1:8000/graphql \
+  -H 'Content-Type: application/json' \
+  -d '{"query":"mutation { createUser(name: \"Ada Lovelace\", email: \"ADA@EXAMPLE.COM\") { id name email } }"}'
+```
+
 ## Input Validation
 
 Use `Fulcrum\Validation\Validator` inside GraphQL resolvers to validate and explicitly sanitize incoming args before touching your domain logic.
@@ -66,3 +87,5 @@ Rate limiting uses the configured cache store from `config/cache.php`; the skele
 ## Events
 
 `config/events.php` registers synchronous domain event listeners. Use it for API-side hooks such as audit logs, cache invalidation, and post-mutation workflows.
+
+The example `createUser` mutation dispatches `App\Events\UserCreated`, which is logged by `App\Listeners\LogUserCreated`.

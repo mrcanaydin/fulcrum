@@ -14,8 +14,8 @@ return [
     |
     */
     'listeners' => [
-        // App\Events\UserRegistered::class => [
-        //     App\Listeners\SendWelcomeEmail::class,
-        // ],
+        App\Events\UserCreated::class => [
+            App\Listeners\LogUserCreated::class,
+        ],
     ],
 ];
