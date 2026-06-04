@@ -88,17 +88,17 @@ Listeners can be registered in `events.listeners` config or at runtime. Class li
 Fulcrum exposes a small CLI for app maintenance:
 
 ```bash
-./vendor/bin/fulcrum migrate
-./vendor/bin/fulcrum migrate:rollback
-./vendor/bin/fulcrum migrate:status
-./vendor/bin/fulcrum make:migration create_api_tokens
-./vendor/bin/fulcrum make:model Post
-./vendor/bin/fulcrum make:resource Post title:string published:boolean
-./vendor/bin/fulcrum make:seeder UserSeeder
-./vendor/bin/fulcrum make:factory UserFactory
-./vendor/bin/fulcrum db:seed
-./vendor/bin/fulcrum schedule:run
-./vendor/bin/fulcrum queue:work --max-jobs=10
+php fulcrum migrate
+php fulcrum migrate:rollback
+php fulcrum migrate:status
+php fulcrum make:migration create_api_tokens
+php fulcrum make:model Post
+php fulcrum make:resource Post title:string published:boolean
+php fulcrum make:seeder UserSeeder
+php fulcrum make:factory UserFactory
+php fulcrum db:seed
+php fulcrum schedule:run
+php fulcrum queue:work --max-jobs=10
 ```
 
 Migrations live in `database/migrations` and return an implementation of `Fulcrum\Database\Migrations\Migration`.
@@ -192,7 +192,7 @@ return [
 Run due schedules from cron:
 
 ```bash
-* * * * * cd /path/to/app && php vendor/bin/fulcrum schedule:run
+* * * * * cd /path/to/app && php fulcrum schedule:run
 ```
 
 Jobs implement `Fulcrum\Queue\Job` and can be dispatched through `QueueManager`. Supported queue drivers are `sync` and `database`.

@@ -48,9 +48,9 @@ The Docker stack runs Nginx, PHP-FPM, Redis, and MySQL. Nginx listens on `http:/
 ## Migrations
 
 ```bash
-./vendor/bin/fulcrum make:migration create_users
-./vendor/bin/fulcrum migrate
-./vendor/bin/fulcrum migrate:status
+php fulcrum make:migration create_users
+php fulcrum migrate
+php fulcrum migrate:status
 ```
 
 The skeleton includes an example `users` migration at `database/migrations/2026_01_01_000000_create_users_table.php`.
@@ -58,9 +58,9 @@ The skeleton includes an example `users` migration at `database/migrations/2026_
 ## Demo Data
 
 ```bash
-./vendor/bin/fulcrum make:seeder UserSeeder
-./vendor/bin/fulcrum make:factory UserFactory
-./vendor/bin/fulcrum db:seed
+php fulcrum make:seeder UserSeeder
+php fulcrum make:factory UserFactory
+php fulcrum db:seed
 ```
 
 The skeleton includes `database/seeders/DatabaseSeeder.php` and `database/factories/UserFactory.php` as generic examples for seeding API demo data.
@@ -75,7 +75,7 @@ The template ships with a tiny user example built on Fulcrum's model layer:
 - `src/GraphQL/UserMutation.php` exposes `createUser(name:, email:)` with validation and sanitization.
 
 ```bash
-./vendor/bin/fulcrum migrate
+php fulcrum migrate
 
 curl -X POST http://127.0.0.1:8000/graphql \
   -H 'Content-Type: application/json' \
@@ -89,8 +89,8 @@ Use `Fulcrum\Validation\Validator` inside GraphQL resolvers to validate and expl
 ## CRUD Scaffolding
 
 ```bash
-./vendor/bin/fulcrum make:model Post
-./vendor/bin/fulcrum make:resource Post title:string published:boolean
+php fulcrum make:model Post
+php fulcrum make:resource Post title:string published:boolean
 ```
 
 `make:resource` generates `src/Models/Post.php`, `src/GraphQL/PostType.php`, `src/GraphQL/PostQuery.php`, and `src/GraphQL/PostMutation.php`. Add the generated GraphQL classes to `config/graphql.php`.
@@ -116,9 +116,9 @@ Rate limiting uses the configured cache store from `config/cache.php`. Local `.e
 Register app commands in `config/console.php`, scheduled tasks in `config/schedule.php`, and queue settings in `config/queue.php`.
 
 ```bash
-./vendor/bin/fulcrum api-data:fetch --sort=new
-./vendor/bin/fulcrum queue:work --max-jobs=10
-./vendor/bin/fulcrum schedule:run
+php fulcrum api-data:fetch --sort=new
+php fulcrum queue:work --max-jobs=10
+php fulcrum schedule:run
 ```
 
 The example `App\Console\FetchApiDataCommand` dispatches `App\Jobs\FetchApiDataJob`. Local `.env` defaults to the `sync` queue driver; Docker uses the `database` driver and the included `jobs` migration.
