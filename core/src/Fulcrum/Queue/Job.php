@@ -6,5 +6,4 @@ namespace Fulcrum\Queue;
 
 interface Job
 {
-    public function handle(): void;
 }

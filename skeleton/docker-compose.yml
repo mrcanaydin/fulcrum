@@ -38,6 +38,8 @@ services:
       REDIS_CACHE_PREFIX: "fulcrum:"
       LOG_CHANNEL: file
       LOG_FILE_PATH: /var/www/html/storage/logs/fulcrum.log
+      MAIL_MAILER: log
+      MAIL_LOG_PATH: /var/www/html/storage/logs/mail.log
     depends_on:
       mysql:
         condition: service_healthy

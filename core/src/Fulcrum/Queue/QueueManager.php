@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Fulcrum\Queue;
 
+use Fulcrum\Container\Container;
 use Fulcrum\Database\DatabaseManager;
 use Fulcrum\Foundation\Config;
 use Fulcrum\Queue\Queues\DatabaseQueue;
@@ -18,7 +19,12 @@ class QueueManager
     public function __construct(
         private readonly Config $config,
         private readonly DatabaseManager $db,
-    ) {}
+        ?JobRunner $runner = null,
+    ) {
+        $this->runner = $runner ?? new JobRunner(new Container());
+    }
+
+    private readonly JobRunner $runner;
 
     public function connection(?string $name = null): Queue
     {
@@ -54,7 +60,7 @@ class QueueManager
         }
 
         return match ($driver) {
-            'sync' => new SyncQueue(),
+            'sync' => new SyncQueue($this->runner),
             'database' => new DatabaseQueue(
                 $this->db,
                 is_string($config['table'] ?? null) ? $config['table'] : 'jobs',

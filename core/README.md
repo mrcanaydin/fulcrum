@@ -69,6 +69,27 @@ Supported drivers:
 - `file` for JSON-line application logs
 - `null` for tests or intentionally silent deployments
 
+## Mail
+
+Fulcrum includes a small mail manager for API workflows such as verification emails, notifications, and background jobs.
+
+```php
+use Fulcrum\Mail\MailManager;
+use Fulcrum\Mail\Message;
+
+$mail = $container->make(MailManager::class);
+$mail->send(new Message(
+    to: 'ada@example.com',
+    subject: 'Verify your email',
+    text: 'Use this verification token: ...',
+));
+```
+
+Supported transports:
+
+- `log` writes JSON-line email payloads for local development
+- `smtp` sends directly through a configured SMTP server
+
 ## Events
 
 Fulcrum includes a synchronous, container-aware event dispatcher for API domain hooks.
@@ -195,7 +216,7 @@ Run due schedules from cron:
 * * * * * cd /path/to/app && php fulcrum schedule:run
 ```
 
-Jobs implement `Fulcrum\Queue\Job` and can be dispatched through `QueueManager`. Supported queue drivers are `sync` and `database`.
+Jobs implement `Fulcrum\Queue\Job` and define a `handle()` method. The handler is container-aware, so services such as `MailManager` can be type-hinted directly. Supported queue drivers are `sync` and `database`.
 
 ## Validation & Sanitization
 

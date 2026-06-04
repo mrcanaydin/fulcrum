@@ -89,7 +89,7 @@ USER_EMAIL_VERIFICATION_ENABLED=false
 USER_EMAIL_VERIFICATION_EXPIRES_MINUTES=60
 ```
 
-When enabled, `createUser` and `sendUserEmailVerification(email:)` queue `App\Jobs\SendEmailVerificationJob`. Replace the example log-writing job with your mail provider integration.
+When enabled, `createUser` and `sendUserEmailVerification(email:)` queue `App\Jobs\SendEmailVerificationJob`, which sends through Fulcrum's mail manager.
 
 User fields include `avatar`, `gender`, `birthday`, `email_verified_at`, `banned_at`, and `ban_reason`. Ban management is available through `banUser(id:, reason:)` and `unbanUser(id:)`.
 
@@ -121,6 +121,27 @@ Rate limiting uses the configured cache store from `config/cache.php`. Local `.e
 ## Logging
 
 `config/logging.php` defaults to JSON-line file logs at `storage/logs/fulcrum.log`. The global exception handler reports uncaught exceptions before returning API-safe JSON errors.
+
+## Mail
+
+`config/mail.php` defaults to the `log` mailer for development. Sent mail is written to `storage/logs/mail.log`, which makes verification emails and notification jobs easy to inspect without an SMTP account.
+
+```env
+MAIL_MAILER=log
+MAIL_LOG_PATH=/var/www/html/storage/logs/mail.log
+```
+
+For production, switch to SMTP:
+
+```env
+MAIL_MAILER=smtp
+MAIL_HOST=smtp.example.com
+MAIL_PORT=587
+MAIL_USERNAME=your-user
+MAIL_PASSWORD=your-password
+MAIL_ENCRYPTION=tls
+MAIL_FROM_ADDRESS=no-reply@example.com
+```
 
 ## Commands, Scheduler & Queues
 

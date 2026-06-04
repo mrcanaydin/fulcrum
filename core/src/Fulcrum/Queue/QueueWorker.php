@@ -4,11 +4,19 @@ declare(strict_types=1);
 
 namespace Fulcrum\Queue;
 
+use Fulcrum\Container\Container;
 use Throwable;
 
 class QueueWorker
 {
-    public function __construct(private readonly QueueManager $queues) {}
+    public function __construct(
+        private readonly QueueManager $queues,
+        ?JobRunner $runner = null,
+    ) {
+        $this->runner = $runner ?? new JobRunner(new Container());
+    }
+
+    private readonly JobRunner $runner;
 
     public function work(int $maxJobs = 1, int $sleepSeconds = 1, int $maxAttempts = 3): int
     {
@@ -23,7 +31,7 @@ class QueueWorker
             }
 
             try {
-                $job->job->handle();
+                $this->runner->run($job->job);
                 $this->queues->connection()->delete($job);
             } catch (Throwable $e) {
                 if ($job->attempts >= $maxAttempts) {

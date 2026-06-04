@@ -10,6 +10,7 @@ class QueueServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        $this->container->singleton(JobRunner::class, JobRunner::class);
         $this->container->singleton(QueueManager::class, QueueManager::class);
         $this->container->singleton(QueueWorker::class, QueueWorker::class);
     }

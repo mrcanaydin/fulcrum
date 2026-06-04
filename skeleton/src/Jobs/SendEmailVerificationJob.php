@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Jobs;
 
+use Fulcrum\Mail\MailManager;
+use Fulcrum\Mail\Message;
 use Fulcrum\Queue\Job;
 
 class SendEmailVerificationJob implements Job
@@ -13,16 +15,12 @@ class SendEmailVerificationJob implements Job
         private readonly string $token,
     ) {}
 
-    public function handle(): void
+    public function handle(MailManager $mail): void
     {
-        $path = getcwd() . '/storage/logs/email-verifications.log';
-        $line = json_encode([
-            'message' => 'Send verification email.',
-            'email' => $this->email,
-            'token' => $this->token,
-            'queued_at' => gmdate(DATE_ATOM),
-        ], JSON_THROW_ON_ERROR);
-
-        file_put_contents($path, $line . PHP_EOL, FILE_APPEND);
+        $mail->send(new Message(
+            to: $this->email,
+            subject: 'Verify your email address',
+            text: "Use this verification token: {$this->token}",
+        ));
     }
 }
