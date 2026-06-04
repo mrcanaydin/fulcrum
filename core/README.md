@@ -136,6 +136,19 @@ class User extends Model
 
 `make:resource` creates a model plus GraphQL type/query/mutation CRUD scaffolding. Register the generated GraphQL classes in `config/graphql.php`.
 
+Use eager loading to batch relationship queries and avoid N+1 resolver loops:
+
+```php
+$users = User::query()->with('posts')->latest()->limit(20)->toArray();
+```
+
+GraphQL resolvers also receive a request-scoped DataLoader registry via `RequestContext` for custom batch loaders:
+
+```php
+$loader = $context->loaders()->getOrRegister('users.by_id', fn (array $ids) => $usersById);
+$user = $loader->load($id);
+```
+
 ## Validation & Sanitization
 
 Input handling is explicit and API-oriented. Sanitizers run only for configured fields and do not mutate global request data.

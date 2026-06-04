@@ -76,3 +76,24 @@ it('resolves has many and belongs to relations', function () {
         ->and($owner)->toBeInstanceOf(ModelTestUser::class)
         ->and($owner?->getAttribute('name'))->toBe('Grace');
 });
+
+it('eager loads relations for model collections', function () {
+    modelTestDatabase();
+
+    $ada = ModelTestUser::create(['name' => 'Ada']);
+    $grace = ModelTestUser::create(['name' => 'Grace']);
+    ModelTestPost::create(['user_id' => $ada->getAttribute('id'), 'title' => 'Analytical Notes']);
+    ModelTestPost::create(['user_id' => $grace->getAttribute('id'), 'title' => 'Compiler Notes']);
+    ModelTestPost::create(['user_id' => $grace->getAttribute('id'), 'title' => 'Debug Diary']);
+
+    $users = ModelTestUser::query()->with('posts')->orderBy('id')->get();
+    $posts = ModelTestPost::query()->with('user')->orderBy('id')->get();
+    $firstPostUser = $posts[0]->toArray()['user'] ?? [];
+    $secondPostUser = $posts[1]->toArray()['user'] ?? [];
+
+    expect($users)->toHaveCount(2)
+        ->and($users[0]->toArray()['posts'])->toHaveCount(1)
+        ->and($users[1]->toArray()['posts'])->toHaveCount(2)
+        ->and(is_array($firstPostUser) ? ($firstPostUser['name'] ?? null) : null)->toBe('Ada')
+        ->and(is_array($secondPostUser) ? ($secondPostUser['name'] ?? null) : null)->toBe('Grace');
+});

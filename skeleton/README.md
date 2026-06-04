@@ -95,6 +95,12 @@ Use `Fulcrum\Validation\Validator` inside GraphQL resolvers to validate and expl
 
 `make:resource` generates `src/Models/Post.php`, `src/GraphQL/PostType.php`, `src/GraphQL/PostQuery.php`, and `src/GraphQL/PostMutation.php`. Add the generated GraphQL classes to `config/graphql.php`.
 
+Use eager loading when returning nested GraphQL data:
+
+```php
+User::query()->with('posts')->latest()->limit(20)->toArray();
+```
+
 ## API Middleware
 
 `config/api.php` keeps this template API-only: CORS, request IDs, body size limits, trusted proxy IP handling, JSON `Content-Type` checks, and rate limiting are configured without sessions or UI concerns.

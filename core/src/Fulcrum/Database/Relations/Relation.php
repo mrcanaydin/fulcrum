@@ -18,4 +18,9 @@ abstract class Relation
     {
         return $model instanceof Model ? $model->getAttribute($key) : ($model[$key] ?? null);
     }
+
+    /**
+     * @param list<Model> $models
+     */
+    abstract public function eagerLoad(array $models, string $relationName): void;
 }

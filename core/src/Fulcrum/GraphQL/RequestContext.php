@@ -19,11 +19,16 @@ use Fulcrum\Routing\Request;
  */
 final class RequestContext
 {
+    private DataLoaderRegistry $loaderRegistry;
+
     public function __construct(
         private readonly Request            $request,
         private readonly ContainerInterface $container,
         private readonly mixed              $user = null,
-    ) {}
+        ?DataLoaderRegistry $loaders = null,
+    ) {
+        $this->loaderRegistry = $loaders ?? new DataLoaderRegistry();
+    }
 
     // ─── Accessors ───────────────────────────────────────────────────────────
 
@@ -49,11 +54,16 @@ final class RequestContext
         return $this->user !== null;
     }
 
+    public function loaders(): DataLoaderRegistry
+    {
+        return $this->loaderRegistry;
+    }
+
     // ─── Mutation (returns new instance) ─────────────────────────────────────
 
     /** Produce a new context carrying an authenticated user. */
     public function withUser(mixed $user): self
     {
-        return new self($this->request, $this->container, $user);
+        return new self($this->request, $this->container, $user, $this->loaders());
     }
 }

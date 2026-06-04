@@ -6,6 +6,9 @@ namespace Fulcrum\Database;
 
 class ModelQueryBuilder
 {
+    /** @var list<string> */
+    private array $relations = [];
+
     /**
      * @param class-string<Model> $modelClass
      */
@@ -59,6 +62,17 @@ class ModelQueryBuilder
         return $this;
     }
 
+    public function with(string ...$relations): static
+    {
+        foreach ($relations as $relation) {
+            if ($relation !== '' && !in_array($relation, $this->relations, true)) {
+                $this->relations[] = $relation;
+            }
+        }
+
+        return $this;
+    }
+
     public function find(int|string $id): ?Model
     {
         $model = new $this->modelClass();
@@ -70,7 +84,16 @@ class ModelQueryBuilder
     {
         $row = $this->builder->first();
 
-        return is_array($row) ? $this->modelClass::hydrate($row) : null;
+        $attributes = $this->attributes($row);
+
+        if ($attributes === null) {
+            return null;
+        }
+
+        $models = [$this->modelClass::hydrate($attributes)];
+        $this->eagerLoad($models);
+
+        return $models[0];
     }
 
     /** @return list<Model> */
@@ -85,6 +108,8 @@ class ModelQueryBuilder
                 $models[] = $this->modelClass::hydrate($attributes);
             }
         }
+
+        $this->eagerLoad($models);
 
         return $models;
     }
@@ -135,5 +160,29 @@ class ModelQueryBuilder
         }
 
         return $attributes;
+    }
+
+    /** @param list<Model> $models */
+    private function eagerLoad(array $models): void
+    {
+        if ($models === [] || $this->relations === []) {
+            return;
+        }
+
+        foreach ($this->relations as $relationName) {
+            $prototype = $models[0];
+
+            if (!method_exists($prototype, $relationName)) {
+                continue;
+            }
+
+            $relation = $prototype->{$relationName}();
+
+            if (!is_object($relation) || !method_exists($relation, 'eagerLoad')) {
+                continue;
+            }
+
+            $relation->eagerLoad($models, $relationName);
+        }
     }
 }

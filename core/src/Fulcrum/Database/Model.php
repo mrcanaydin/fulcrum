@@ -14,6 +14,9 @@ abstract class Model
     /** @var callable(): DatabaseManager|null */
     private static $databaseResolver = null;
 
+    /** @var array<string, mixed> */
+    protected array $relations = [];
+
     /** @param array<string, mixed> $attributes */
     public function __construct(protected array $attributes = []) {}
 
@@ -74,7 +77,13 @@ abstract class Model
     /** @return array<string, mixed> */
     public function toArray(): array
     {
-        return $this->attributes;
+        $attributes = $this->attributes;
+
+        foreach ($this->relations as $name => $value) {
+            $attributes[$name] = $this->relationToArray($value);
+        }
+
+        return $attributes;
     }
 
     public function getAttribute(string $key): mixed
@@ -89,7 +98,17 @@ abstract class Model
 
     public function __isset(string $key): bool
     {
-        return array_key_exists($key, $this->attributes);
+        return array_key_exists($key, $this->attributes) || array_key_exists($key, $this->relations);
+    }
+
+    public function setRelation(string $name, mixed $value): void
+    {
+        $this->relations[$name] = $value;
+    }
+
+    public function getRelation(string $name): mixed
+    {
+        return $this->relations[$name] ?? null;
     }
 
     /**
@@ -132,5 +151,21 @@ abstract class Model
         $parts = explode('\\', $class ?? static::class);
 
         return end($parts) ?: 'model';
+    }
+
+    private function relationToArray(mixed $value): mixed
+    {
+        if ($value instanceof Model) {
+            return $value->toArray();
+        }
+
+        if (is_array($value)) {
+            return array_map(
+                fn (mixed $item): mixed => $item instanceof Model ? $item->toArray() : $item,
+                $value
+            );
+        }
+
+        return $value;
     }
 }
