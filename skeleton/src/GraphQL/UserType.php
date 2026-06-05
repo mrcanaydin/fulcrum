@@ -20,6 +20,9 @@ class UserType
     public string $email;
 
     #[Field(type: 'String')]
+    public ?string $locale = null;
+
+    #[Field(type: 'String')]
     public ?string $avatar = null;
 
     #[Field(type: 'String')]

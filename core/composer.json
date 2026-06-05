@@ -56,6 +56,7 @@
             "Fulcrum\\Observability\\ObservabilityServiceProvider",
             "Fulcrum\\GraphQL\\GraphQLServiceProvider",
             "Fulcrum\\Storage\\StorageServiceProvider",
+            "Fulcrum\\Internationalization\\InternationalizationServiceProvider",
             "Fulcrum\\Validation\\ValidationServiceProvider"
         ]
     },

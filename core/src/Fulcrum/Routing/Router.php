@@ -19,6 +19,10 @@ use Fulcrum\Routing\Middleware\MiddlewarePipeline;
 use Fulcrum\Routing\Middleware\RateLimitMiddleware;
 use Fulcrum\Routing\Middleware\RequestIdMiddleware;
 use Fulcrum\Observability\HealthChecker;
+use Fulcrum\Internationalization\LocaleResolver;
+use Fulcrum\Internationalization\Translator;
+use Fulcrum\GraphQL\Subscriptions\SubscriptionAuthorizer;
+use Fulcrum\GraphQL\Subscriptions\SubscriptionBroker;
 
 /**
  * Minimalist router.
@@ -77,6 +81,10 @@ class Router
             return Response::json($result->toArray(), $result->healthy ? 200 : 503);
         }
 
+        if ($request->isGet() && $request->path() === '/graphql/stream') {
+            return $this->subscriptionStream($request);
+        }
+
         if ($request->path() !== '/graphql') {
             return Response::notFound();
         }
@@ -100,8 +108,12 @@ class Router
         }
 
         $user = $authenticator->authenticate($request);
-
-        $context = new RequestContext($request, $this->container, $user);
+        $locale = $this->localeResolver()->resolve($request, $user);
+        $translator = $this->container->make(Translator::class);
+        if ($translator instanceof Translator) {
+            $translator->setLocale($locale);
+        }
+        $context = new RequestContext($request, $this->container, $user, $locale);
 
         $variables = $request->graphqlVariables();
 
@@ -130,6 +142,57 @@ class Router
         }
 
         return $manager;
+    }
+
+    private function localeResolver(): LocaleResolver
+    {
+        $resolver = $this->container->make(LocaleResolver::class);
+
+        if (!$resolver instanceof LocaleResolver) {
+            throw new \RuntimeException('Locale resolver is not registered.');
+        }
+
+        return $resolver;
+    }
+
+    private function subscriptionStream(Request $request): Response
+    {
+        $authenticator = $this->container->make(TokenAuthenticator::class);
+        $resolver = $this->localeResolver();
+        $user = $authenticator instanceof TokenAuthenticator ? $authenticator->authenticate($request) : null;
+        $context = new RequestContext($request, $this->container, $user, $resolver->resolve($request, $user));
+        $topic = $request->query('topic');
+
+        if (!is_string($topic) || $topic === '') {
+            return Response::error('Subscription topic is required.', 400);
+        }
+
+        $authorizer = $this->container->make(SubscriptionAuthorizer::class);
+        $broker = $this->container->make(SubscriptionBroker::class);
+
+        try {
+            if (!$authorizer instanceof SubscriptionAuthorizer || !$broker instanceof SubscriptionBroker) {
+                throw new \RuntimeException('Subscription services are not registered.');
+            }
+            $authorizer->authorize($topic, $context);
+            $after = $request->header('last-event-id') ?? $request->query('after', '0');
+            $events = $broker->events($topic, is_scalar($after) ? (string) $after : '0');
+        } catch (ClientException $exception) {
+            return Response::json(['errors' => [$exception->toGraphQLError()]], 403);
+        }
+
+        $content = "retry: 3000\n\n";
+        foreach ($events as $event) {
+            $content .= "id: {$event['id']}\n";
+            $content .= "event: {$event['topic']}\n";
+            $content .= 'data: ' . json_encode($event['payload'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n\n";
+        }
+
+        return Response::raw($content, 200, [
+            'Content-Type' => 'text/event-stream',
+            'Cache-Control' => 'no-cache, no-transform',
+            'X-Accel-Buffering' => 'no',
+        ]);
     }
 
     private function pipeline(): MiddlewarePipeline

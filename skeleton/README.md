@@ -110,6 +110,19 @@ User fields include `avatar`, `gender`, `birthday`, `email_verified_at`, `banned
 
 Use `Fulcrum\Validation\Validator` inside GraphQL resolvers to validate and explicitly sanitize incoming args before touching your domain logic.
 
+## Internationalization
+
+Fulcrum localizes backend-generated validation messages, email, and notifications while leaving frontend UI translation to clients. Locale is resolved from a top-level GraphQL request `locale`, `X-Locale`, authenticated user `locale`, `Accept-Language`, then `APP_LOCALE`.
+
+```json
+{
+  "locale": "tr",
+  "query": "mutation { createUser(name: \"A\", email: \"invalid\") { id } }"
+}
+```
+
+Translation catalogs live under `lang/{locale}/*.php`. Configure supported and fallback locales with `APP_SUPPORTED_LOCALES` and `APP_FALLBACK_LOCALE`. The example users table stores the resolved signup locale for later authenticated requests. Queued mail and notification payloads carry their locale explicitly; use `Translator::cacheKey()` for locale-dependent application caches. GraphQL error codes remain stable across languages.
+
 ## CRUD Scaffolding
 
 ```bash
@@ -149,9 +162,42 @@ php fulcrum schema:diff baseline/schema.graphql
 
 ## Reliable Mutations
 
-The example `createUser` mutation is idempotent and transactional. Run migrations to create the included `idempotency_keys` table, then send a unique `Idempotency-Key` header. Retrying the same mutation with the same key and arguments returns its original result without creating another user.
+The example `createUser` mutation is transactional and rejects duplicate email addresses. Email verification tokens are stored as SHA-256 hashes, while only the plain token is sent to the verification job.
 
 Events and verification jobs from `createUser` use after-commit dispatch, so they are discarded when the user write rolls back.
+
+## Subscriptions
+
+The skeleton exposes cursor-resumable Server-Sent Events at `GET /graphql/stream`. Allowed topics and publication mappings live in `config/subscriptions.php`; the included `user.created` topic requires authentication and the `users:read` token ability.
+
+The included personal-access-token migration supports authenticated API features. Issue tokens through your application authentication flow using Fulcrum's `TokenManager`; never expose arbitrary token issuance to anonymous callers.
+
+```bash
+curl -N 'http://127.0.0.1:8080/graphql/stream?topic=user.created&after=0' \
+  -H 'Authorization: Bearer YOUR_TOKEN'
+```
+
+Each response contains the available event batch and closes. Browsers and SSE clients reconnect after three seconds and should send the last event ID using `Last-Event-ID` or `after`. This model does not hold PHP-FPM workers open. Run `php fulcrum migrate` to create the shared event table, keep all API instances on the same database and rate-limit cache, and disable reverse-proxy buffering for `/graphql/stream` as shown in `docker/nginx/default.conf`.
+
+Add domain-specific topic checks by configuring an implementation of `Fulcrum\GraphQL\Subscriptions\SubscriptionAuthorizationHook`. Adjust `SUBSCRIPTION_RETENTION_SECONDS` for traffic and retention requirements.
+
+## Direct Uploads
+
+Authenticated callers with the `uploads:create` token ability can request an S3-compatible direct PUT URL. Configure an S3 storage disk first; local disks are intentionally unsupported for signed uploads.
+
+```graphql
+mutation {
+  createSignedUpload(path: "avatars/user-123.jpg", contentType: "image/jpeg") {
+    url
+    method
+    headers
+    path
+    expiresAt
+  }
+}
+```
+
+The client uploads the file bytes directly to the returned `url` using the returned method and headers. GraphQL only issues short-lived upload instructions and never receives the file body.
 
 ## Logging
 

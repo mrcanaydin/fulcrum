@@ -40,6 +40,7 @@ class WebhookNotificationTransport implements NotificationTransport
             'title' => $notification->title,
             'body' => $notification->body,
             'data' => $notification->data,
+            'locale' => $notification->locale,
         ], JSON_THROW_ON_ERROR);
 
         $response = file_get_contents($this->url, false, stream_context_create([

@@ -13,6 +13,7 @@ return new class implements Migration {
                 id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
                 name VARCHAR(255) NOT NULL,
                 email VARCHAR(255) NOT NULL,
+                locale VARCHAR(16) NULL DEFAULT NULL,
                 avatar VARCHAR(2048) NULL DEFAULT NULL,
                 gender VARCHAR(32) NULL DEFAULT NULL,
                 birthday DATE NULL DEFAULT NULL,

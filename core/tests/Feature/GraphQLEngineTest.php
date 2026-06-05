@@ -9,6 +9,7 @@ use Fulcrum\Foundation\Config;
 use Fulcrum\GraphQL\Executor;
 use Fulcrum\GraphQL\GraphQLServiceProvider;
 use Fulcrum\GraphQL\Attributes\Query;
+use Fulcrum\GraphQL\Attributes\Subscription;
 use Fulcrum\GraphQL\Attributes\ObjectType;
 use Fulcrum\GraphQL\Attributes\Field;
 use Fulcrum\GraphQL\Attributes\Arg;
@@ -129,6 +130,15 @@ class TestQueries
 
 }
 
+class TestSubscriptions
+{
+    #[Subscription(name: 'messageAdded', type: 'String!')]
+    public function messageAdded(): string
+    {
+        return 'message';
+    }
+}
+
 class TestTypedQueries
 {
     #[Query(name: 'typedEcho', type: 'JSON!')]
@@ -242,6 +252,23 @@ test('GraphQL Engine resolves basic queries', function () {
         ->and($result['data']['user']['id'])->toBe('1')
         ->and($result['data']['user']['name'])->toBe('Alice Smith')
         ->and($result['data']['user']['email'])->toBe('alice.smith@example.com');
+});
+
+test('GraphQL schema compiles attributed subscriptions', function () {
+    $container = new Container();
+    $config = new Config(__DIR__ . '/non_existent');
+    $config->set('graphql.types', [TestUser::class, TestQueries::class, TestSubscriptions::class]);
+    $container->instance(Config::class, $config);
+
+    (new GraphQLServiceProvider($container))->register();
+
+    /** @var Executor $executor */
+    $executor = $container->make(Executor::class);
+    $executor->schema()->assertValid();
+
+    expect(SchemaPrinter::doPrint($executor->schema()))
+        ->toContain('type Subscription')
+        ->toContain('messageAdded: String!');
 });
 
 test('GraphQL errors expose stable codes and request IDs while masking internal failures', function () {

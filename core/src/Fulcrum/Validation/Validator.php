@@ -4,9 +4,15 @@ declare(strict_types=1);
 
 namespace Fulcrum\Validation;
 
+use DateTimeImmutable;
+use Fulcrum\Internationalization\Translator;
+
 class Validator
 {
-    public function __construct(private readonly Sanitizer $sanitizer = new Sanitizer()) {}
+    public function __construct(
+        private readonly Sanitizer $sanitizer = new Sanitizer(),
+        private readonly ?Translator $translator = null,
+    ) {}
 
     /**
      * @param array<string, mixed> $input
@@ -30,7 +36,10 @@ class Validator
         }
 
         if ($errors !== []) {
-            throw new ValidationException($errors);
+            throw new ValidationException(
+                $errors,
+                $this->message('validation.failed', fallback: 'The given input was invalid.'),
+            );
         }
 
         return $data;
@@ -79,17 +88,18 @@ class Validator
         }
 
         return match ($name) {
-            'required' => $present && $value !== null && $value !== '' ? null : "{$field} is required.",
-            'string' => is_string($value) ? null : "{$field} must be a string.",
-            'email' => is_string($value) && filter_var($value, FILTER_VALIDATE_EMAIL) ? null : "{$field} must be a valid email address.",
-            'url' => is_string($value) && filter_var($value, FILTER_VALIDATE_URL) ? null : "{$field} must be a valid URL.",
-            'int', 'integer' => is_int($value) ? null : "{$field} must be an integer.",
-            'numeric' => is_int($value) || is_float($value) ? null : "{$field} must be numeric.",
-            'bool', 'boolean' => is_bool($value) ? null : "{$field} must be true or false.",
-            'array' => is_array($value) ? null : "{$field} must be an array.",
+            'required' => $present && $value !== null && $value !== '' ? null : $this->message('validation.required', ['field' => $field], "{$field} is required."),
+            'string' => is_string($value) ? null : $this->message('validation.string', ['field' => $field], "{$field} must be a string."),
+            'email' => is_string($value) && filter_var($value, FILTER_VALIDATE_EMAIL) ? null : $this->message('validation.email', ['field' => $field], "{$field} must be a valid email address."),
+            'url' => is_string($value) && filter_var($value, FILTER_VALIDATE_URL) ? null : $this->message('validation.url', ['field' => $field], "{$field} must be a valid URL."),
+            'int', 'integer' => is_int($value) ? null : $this->message('validation.integer', ['field' => $field], "{$field} must be an integer."),
+            'numeric' => is_int($value) || is_float($value) ? null : $this->message('validation.numeric', ['field' => $field], "{$field} must be numeric."),
+            'bool', 'boolean' => is_bool($value) ? null : $this->message('validation.boolean', ['field' => $field], "{$field} must be true or false."),
+            'array' => is_array($value) ? null : $this->message('validation.array', ['field' => $field], "{$field} must be an array."),
             'min' => $this->validateMin($field, $value, $parameter),
             'max' => $this->validateMax($field, $value, $parameter),
             'in' => $this->validateIn($field, $value, $parameter),
+            'date_format' => $this->validateDateFormat($field, $value, $parameter),
             default => null,
         };
     }
@@ -99,11 +109,11 @@ class Validator
         $min = (float) ($parameter ?? 0);
 
         if (is_string($value)) {
-            return strlen($value) >= $min ? null : "{$field} must be at least {$parameter} characters.";
+            return strlen($value) >= $min ? null : $this->message('validation.min_string', ['field' => $field, 'min' => $parameter], "{$field} must be at least {$parameter} characters.");
         }
 
         if (is_int($value) || is_float($value)) {
-            return $value >= $min ? null : "{$field} must be at least {$parameter}.";
+            return $value >= $min ? null : $this->message('validation.min_numeric', ['field' => $field, 'min' => $parameter], "{$field} must be at least {$parameter}.");
         }
 
         return null;
@@ -114,11 +124,11 @@ class Validator
         $max = (float) ($parameter ?? 0);
 
         if (is_string($value)) {
-            return strlen($value) <= $max ? null : "{$field} may not be greater than {$parameter} characters.";
+            return strlen($value) <= $max ? null : $this->message('validation.max_string', ['field' => $field, 'max' => $parameter], "{$field} may not be greater than {$parameter} characters.");
         }
 
         if (is_int($value) || is_float($value)) {
-            return $value <= $max ? null : "{$field} may not be greater than {$parameter}.";
+            return $value <= $max ? null : $this->message('validation.max_numeric', ['field' => $field, 'max' => $parameter], "{$field} may not be greater than {$parameter}.");
         }
 
         return null;
@@ -129,11 +139,37 @@ class Validator
         $allowed = $parameter !== null ? explode(',', $parameter) : [];
 
         if (!is_scalar($value)) {
-            return "{$field} must be one of: " . implode(', ', $allowed) . '.';
+            return $this->message('validation.in', ['field' => $field, 'values' => implode(', ', $allowed)], "{$field} must be one of: " . implode(', ', $allowed) . '.');
         }
 
         return in_array((string) $value, $allowed, true)
             ? null
-            : "{$field} must be one of: " . implode(', ', $allowed) . '.';
+            : $this->message('validation.in', ['field' => $field, 'values' => implode(', ', $allowed)], "{$field} must be one of: " . implode(', ', $allowed) . '.');
+    }
+
+    private function validateDateFormat(string $field, mixed $value, ?string $format): ?string
+    {
+        if (!is_string($value) || $format === null || $format === '') {
+            return $this->message('validation.date_format', ['field' => $field, 'format' => $format], "{$field} must match the required date format.");
+        }
+
+        $date = DateTimeImmutable::createFromFormat('!' . $format, $value);
+        $errors = DateTimeImmutable::getLastErrors();
+
+        if (
+            !$date instanceof DateTimeImmutable
+            || $date->format($format) !== $value
+            || (is_array($errors) && ($errors['warning_count'] > 0 || $errors['error_count'] > 0))
+        ) {
+            return $this->message('validation.date_format', ['field' => $field, 'format' => $format], "{$field} must match the format {$format}.");
+        }
+
+        return null;
+    }
+
+    /** @param array<string, scalar|null> $replace */
+    private function message(string $key, array $replace = [], string $fallback = ''): string
+    {
+        return $this->translator?->get($key, $replace, fallback: $fallback) ?? $fallback;
     }
 }

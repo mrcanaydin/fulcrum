@@ -11,6 +11,7 @@ use Fulcrum\GraphQL\Attributes\ObjectType;
 use Fulcrum\GraphQL\Attributes\Field;
 use Fulcrum\GraphQL\Attributes\Query;
 use Fulcrum\GraphQL\Attributes\Mutation;
+use Fulcrum\GraphQL\Attributes\Subscription;
 use Fulcrum\GraphQL\Attributes\Arg;
 use Fulcrum\GraphQL\Attributes\Authenticated;
 use Fulcrum\GraphQL\Attributes\EnumType;
@@ -57,6 +58,7 @@ class AttributeCompiler
             // A class can also contain Queries/Mutations independently of being an ObjectType
             $queryFields    = $this->compileFields($refClass, Query::class);
             $mutationFields = $this->compileFields($refClass, Mutation::class);
+            $subscriptionFields = $this->compileFields($refClass, Subscription::class);
 
             if (!empty($queryFields)) {
                 $typeDefs[] = new TypeDef(
@@ -75,11 +77,21 @@ class AttributeCompiler
                     fields: $mutationFields,
                 );
             }
+
+            if (!empty($subscriptionFields)) {
+                $typeDefs[] = new TypeDef(
+                    kind: TypeDef::KIND_SUBSCRIPTION,
+                    name: 'Subscription',
+                    className: $className,
+                    fields: $subscriptionFields,
+                );
+            }
         }
 
         return $typeDefs;
     }
 
+    /** @param ReflectionClass<object> $refClass */
     private function compileInputObject(ReflectionClass $refClass): TypeDef
     {
         /** @var InputObject $attr */
@@ -112,6 +124,7 @@ class AttributeCompiler
         );
     }
 
+    /** @param ReflectionClass<object> $refClass */
     private function compileEnum(ReflectionClass $refClass): TypeDef
     {
         /** @var EnumType $attr */
@@ -125,6 +138,7 @@ class AttributeCompiler
         );
     }
 
+    /** @param ReflectionClass<object> $refClass */
     private function compileObjectType(ReflectionClass $refClass): TypeDef
     {
         /** @var ObjectType $attr */
@@ -144,7 +158,7 @@ class AttributeCompiler
     }
 
     /**
-     * @param ReflectionClass $refClass
+     * @param ReflectionClass<object> $refClass
      * @param string          $attributeClass The Attribute to look for (Field, Query, Mutation)
      * @return array<int, FieldDef>
      */
@@ -172,17 +186,17 @@ class AttributeCompiler
 
     private function compileMethodField(ReflectionMethod $method, string $attributeClass): FieldDef
     {
-        /** @var Field|Query|Mutation $attr */
+        /** @var Field|Query|Mutation|Subscription $attr */
         $attr = $this->getAttributeInstance($method, $attributeClass);
 
         $name        = $attr->name ?: $method->getName();
         $type        = $attr->type;
-        $description = $attr->description ?? '';
+        $description = $attr->description;
         
         // Try to infer type from return type if not explicitly provided
         if ($type === '' && $method->hasReturnType()) {
             $type = $this->inferGraphQLTypeFromPHPType($method->getReturnType());
-            if ($attributeClass === Field::class && $attr->nullable === false) {
+            if ($attr instanceof Field && $attr->nullable === false) {
                  if (!str_ends_with($type, '!')) {
                      $type .= '!';
                  }
@@ -222,7 +236,7 @@ class AttributeCompiler
 
         $name        = $attr->name ?: $property->getName();
         $type        = $attr->type;
-        $description = $attr->description ?? '';
+        $description = $attr->description;
 
         if ($type === '' && $property->hasType()) {
             $type = $this->inferGraphQLTypeFromPHPType($property->getType());
@@ -271,11 +285,17 @@ class AttributeCompiler
         return $args;
     }
 
+    /**
+     * @param ReflectionClass<object>|ReflectionMethod|ReflectionProperty $ref
+     */
     private function hasAttribute(ReflectionClass|ReflectionMethod|ReflectionProperty $ref, string $attributeClass): bool
     {
         return count($ref->getAttributes($attributeClass)) > 0;
     }
 
+    /**
+     * @param ReflectionClass<object>|ReflectionMethod|ReflectionProperty $ref
+     */
     private function getAttributeInstance(ReflectionClass|ReflectionMethod|ReflectionProperty $ref, string $attributeClass): mixed
     {
         $attributes = $ref->getAttributes($attributeClass);

@@ -16,6 +16,7 @@ return [
     'listeners' => [
         App\Events\UserCreated::class => [
             App\Listeners\LogUserCreated::class,
+            Fulcrum\GraphQL\Subscriptions\SubscriptionEventPublisher::class,
         ],
     ],
 ];

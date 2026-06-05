@@ -25,6 +25,7 @@ final class RequestContext
         private readonly Request            $request,
         private readonly ContainerInterface $container,
         private readonly mixed              $user = null,
+        private readonly string             $locale = 'en',
         ?DataLoaderRegistry $loaders = null,
     ) {
         $this->loaderRegistry = $loaders ?? new DataLoaderRegistry();
@@ -59,11 +60,16 @@ final class RequestContext
         return $this->loaderRegistry;
     }
 
+    public function locale(): string
+    {
+        return $this->locale;
+    }
+
     // ─── Mutation (returns new instance) ─────────────────────────────────────
 
     /** Produce a new context carrying an authenticated user. */
     public function withUser(mixed $user): self
     {
-        return new self($this->request, $this->container, $user, $this->loaders());
+        return new self($this->request, $this->container, $user, $this->locale, $this->loaders());
     }
 }

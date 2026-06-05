@@ -15,6 +15,7 @@ class Message
         public readonly string $text,
         public readonly ?string $html = null,
         public readonly ?string $from = null,
+        public readonly ?string $locale = null,
     ) {}
 
     public function withHeader(string $name, string $value): self

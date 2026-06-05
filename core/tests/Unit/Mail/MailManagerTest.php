@@ -19,12 +19,14 @@ it('writes sent mail to the log transport', function () {
         to: 'ada@example.com',
         subject: 'Hello',
         text: 'Welcome to Fulcrum',
+        locale: 'en',
     ));
 
     $line = file_get_contents($path);
     expect($line)->toBeString()
         ->and($line)->toContain('ada@example.com')
         ->and($line)->toContain('Welcome to Fulcrum');
+    expect($line)->toContain('"locale":"en"');
 
     unlink($path);
 });

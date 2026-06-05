@@ -1,0 +1,41 @@
+<?php
+
+declare(strict_types=1);
+
+use Fulcrum\Foundation\Config;
+use Fulcrum\GraphQL\Exceptions\ClientException;
+use Fulcrum\Storage\SignedUploadManager;
+
+it('creates direct S3 signed upload instructions', function () {
+    $config = new Config(__DIR__ . '/missing');
+    $config->set('storage.default', 's3');
+    $config->set('storage.disks.s3', [
+        'driver' => 's3',
+        'key' => 'test-key',
+        'secret' => 'test-secret',
+        'region' => 'us-east-1',
+        'bucket' => 'uploads',
+        'endpoint' => 'https://storage.example.com',
+        'use_path_style_endpoint' => true,
+    ]);
+
+    $upload = (new SignedUploadManager($config))->create('users/1/avatar.png', 'image/png', 300);
+
+    expect($upload->method)->toBe('PUT')
+        ->and($upload->url)->toContain('X-Amz-Signature')
+        ->and($upload->headers['Content-Type'])->toBe('image/png');
+});
+
+it('rejects unsupported signed upload disks and unsafe paths', function () {
+    $config = new Config(__DIR__ . '/missing');
+    $config->set('storage.default', 'local');
+    $config->set('storage.disks.local', ['driver' => 'local', 'root' => '/tmp']);
+
+    expect(fn () => (new SignedUploadManager($config))->create('file.txt', 'text/plain'))
+        ->toThrow(ClientException::class);
+
+    $config->set('storage.default', 's3');
+    $config->set('storage.disks.s3', ['driver' => 's3', 'bucket' => 'uploads']);
+    expect(fn () => (new SignedUploadManager($config))->create('../secret', 'text/plain'))
+        ->toThrow(ClientException::class);
+});

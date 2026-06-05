@@ -42,3 +42,21 @@ it('coerces scalar values through explicit sanitizers', function () {
     expect($data['age'])->toBe(42)
         ->and($data['active'])->toBeTrue();
 });
+
+it('validates strict date formats', function () {
+    $validator = new Validator();
+    $data = $validator->validate(
+        ['birthday' => '2000-02-29', 'optional_date' => null],
+        ['birthday' => 'required|date_format:Y-m-d', 'optional_date' => 'nullable|date_format:Y-m-d']
+    );
+
+    expect($data['birthday'])->toBe('2000-02-29')
+        ->and($data['optional_date'])->toBeNull();
+
+    foreach (['2026-02-31', '31-12-2026', '2026-2-3'] as $birthday) {
+        expect(fn () => $validator->validate(
+            ['birthday' => $birthday],
+            ['birthday' => 'required|date_format:Y-m-d']
+        ))->toThrow(ValidationException::class);
+    }
+});

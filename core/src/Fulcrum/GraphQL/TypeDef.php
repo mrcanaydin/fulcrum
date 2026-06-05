@@ -15,6 +15,7 @@ final class TypeDef
     public const KIND_OBJECT   = 'object';
     public const KIND_QUERY    = 'query';
     public const KIND_MUTATION = 'mutation';
+    public const KIND_SUBSCRIPTION = 'subscription';
     public const KIND_INPUT    = 'input';
     public const KIND_ENUM     = 'enum';
 

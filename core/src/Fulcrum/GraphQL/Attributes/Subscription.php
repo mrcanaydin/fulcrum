@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Fulcrum\GraphQL\Attributes;
 
 /**
- * Marks a method as a GraphQL Subscription field (stub — Phase 5+).
+ * Marks a method as a GraphQL Subscription field.
  *
  * Usage:
  *   #[Subscription(name: 'messageAdded', type: 'Message!')]
@@ -18,5 +18,6 @@ final class Subscription
         public readonly string $name        = '',
         public readonly string $type        = '',
         public readonly string $description = '',
+        public readonly ?string $deprecationReason = null,
     ) {}
 }

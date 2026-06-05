@@ -51,6 +51,12 @@ final class Response
         return new static(null, $status);
     }
 
+    /** @param array<string, string> $headers */
+    public static function raw(string $content, int $status = 200, array $headers = []): static
+    {
+        return new static($content, $status, $headers);
+    }
+
     // ─── Mutation ────────────────────────────────────────────────────────────
 
     public function withHeader(string $name, string $value): static
@@ -79,7 +85,9 @@ final class Response
             return;
         }
 
-        echo json_encode($this->data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        echo is_string($this->data)
+            ? $this->data
+            : json_encode($this->data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     }
 
     // ─── Accessors ───────────────────────────────────────────────────────────

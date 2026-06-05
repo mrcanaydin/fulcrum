@@ -25,6 +25,7 @@ class LogNotificationTransport implements NotificationTransport
             'body' => $notification->body,
             'data' => $notification->data,
             'headers' => $notification->headers,
+            'locale' => $notification->locale,
             'sent_at' => gmdate(DATE_ATOM),
         ], JSON_THROW_ON_ERROR) . PHP_EOL, FILE_APPEND);
     }

@@ -9,6 +9,7 @@ use Fulcrum\Mail\MailManager;
 use Fulcrum\Mail\Message;
 use Fulcrum\Mail\SendMailJob;
 use Fulcrum\Queue\QueueManager;
+use Fulcrum\Internationalization\Translator;
 
 class NotificationHookListener
 {
@@ -17,6 +18,7 @@ class NotificationHookListener
         private readonly NotificationManager $notifications,
         private readonly MailManager $mail,
         private readonly QueueManager $queues,
+        private readonly Translator $translator,
     ) {}
 
     public function handle(mixed $event, string $eventName): void
@@ -34,10 +36,11 @@ class NotificationHookListener
 
             $this->notifications->send(new Notification(
                 to: $this->template($this->string($hook, 'to'), $event),
-                title: $this->template($this->string($hook, 'title'), $event),
-                body: $this->template($this->string($hook, 'body'), $event),
+                title: $this->localizedTemplate($hook, 'title', $event),
+                body: $this->localizedTemplate($hook, 'body', $event),
                 data: $this->templateArray($this->array($hook, 'data'), $event),
                 headers: $this->stringArray($this->array($hook, 'headers'), $event),
+                locale: $this->eventLocale($event),
             ), $this->nullableString($hook, 'channel'), $this->nullableBool($hook, 'queue'));
         }
     }
@@ -51,10 +54,11 @@ class NotificationHookListener
 
             $message = new Message(
                 to: $this->template($this->string($hook, 'to'), $event),
-                subject: $this->template($this->string($hook, 'subject'), $event),
-                text: $this->template($this->string($hook, 'text'), $event),
+                subject: $this->localizedTemplate($hook, 'subject', $event),
+                text: $this->localizedTemplate($hook, 'text', $event),
                 html: $this->nullableTemplate($this->nullableString($hook, 'html'), $event),
                 from: $this->nullableTemplate($this->nullableString($hook, 'from'), $event),
+                locale: $this->eventLocale($event),
             );
 
             if ($this->nullableBool($hook, 'queue') ?? true) {
@@ -149,6 +153,26 @@ class NotificationHookListener
         }
 
         return $value;
+    }
+
+    /** @param array<string, mixed> $hook */
+    private function localizedTemplate(array $hook, string $key, mixed $event): string
+    {
+        $value = $this->string($hook, $key);
+        $translationKey = $this->nullableString($hook, $key . '_key');
+
+        if ($translationKey !== null) {
+            $value = $this->translator->get($translationKey, locale: $this->eventLocale($event), fallback: $value);
+        }
+
+        return $this->template($value, $event);
+    }
+
+    private function eventLocale(mixed $event): string
+    {
+        return is_object($event) && isset($event->locale) && is_string($event->locale)
+            ? $event->locale
+            : $this->translator->locale();
     }
 
     /**

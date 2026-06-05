@@ -42,6 +42,7 @@ class SchemaCompiler
     {
         $queryFields    = [];
         $mutationFields = [];
+        $subscriptionFields = [];
         $this->typeCache = [];
         $this->namedDefs = [];
         $this->scalarTypes = $scalarTypes;
@@ -59,7 +60,18 @@ class SchemaCompiler
                 $queryFields = array_merge($queryFields, $this->compileFields($def->fields, $def->className));
             } elseif ($def->kind === TypeDef::KIND_MUTATION) {
                 $mutationFields = array_merge($mutationFields, $this->compileFields($def->fields, $def->className));
+            } elseif ($def->kind === TypeDef::KIND_SUBSCRIPTION) {
+                $subscriptionFields = array_merge($subscriptionFields, $this->compileFields($def->fields, $def->className));
             }
+        }
+
+        $subscriptionType = null;
+        if (!empty($subscriptionFields)) {
+            $subscriptionType = new ObjectType([
+                'name' => 'Subscription',
+                'fields' => $subscriptionFields,
+            ]);
+            $this->typeCache['Subscription'] = $subscriptionType;
         }
 
         // 2. Build root Query type
@@ -86,6 +98,7 @@ class SchemaCompiler
         return new Schema([
             'query'    => $queryType,
             'mutation' => $mutationType,
+            'subscription' => $subscriptionType,
             'typeLoader' => fn(string $name) => $this->loadType($name),
         ]);
     }
@@ -311,6 +324,10 @@ class SchemaCompiler
             'ID'      => Type::id(),
             default   => $this->loadType($typeStr), // Lazy load custom object types
         };
+
+        if ($baseType === null) {
+            throw new \RuntimeException("Unknown GraphQL type: {$typeStr}");
+        }
 
         if ($innerIsNonNull) {
             $baseType = Type::nonNull($baseType);

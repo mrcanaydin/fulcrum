@@ -11,5 +11,6 @@ class StorageServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->container->singleton(StorageManager::class, StorageManager::class);
+        $this->container->singleton(SignedUploadManager::class, SignedUploadManager::class);
     }
 }

@@ -86,6 +86,19 @@ final class Request
         return $this->server[$key] ?? $default;
     }
 
+    public function query(string $key, mixed $default = null): mixed
+    {
+        $uri = $this->server('REQUEST_URI', '');
+        $query = is_string($uri) ? parse_url($uri, PHP_URL_QUERY) : null;
+        $values = [];
+
+        if (is_string($query)) {
+            parse_str($query, $values);
+        }
+
+        return $values[$key] ?? $default;
+    }
+
     public function contentLength(): int
     {
         $length = $this->server('CONTENT_LENGTH', 0);
@@ -139,6 +152,34 @@ final class Request
         return null;
     }
 
+    public function explicitLocale(): ?string
+    {
+        $locale = $this->body['locale'] ?? $this->header('x-locale');
+
+        return is_string($locale) && trim($locale) !== '' ? trim($locale) : null;
+    }
+
+    /** @return list<string> */
+    public function acceptedLocales(): array
+    {
+        $header = $this->header('accept-language');
+
+        if ($header === null || trim($header) === '') {
+            return [];
+        }
+
+        $locales = [];
+
+        foreach (explode(',', $header) as $position => $part) {
+            [$locale, $quality] = array_pad(explode(';q=', trim($part), 2), 2, '1');
+            $locales[] = ['locale' => trim($locale), 'quality' => (float) $quality, 'position' => $position];
+        }
+
+        usort($locales, static fn (array $a, array $b): int => $b['quality'] <=> $a['quality'] ?: $a['position'] <=> $b['position']);
+
+        return array_values(array_filter(array_column($locales, 'locale'), static fn (string $locale): bool => $locale !== '*'));
+    }
+
     public function attribute(string $name, mixed $default = null): mixed
     {
         return $this->attributes[$name] ?? $default;
@@ -149,7 +190,7 @@ final class Request
         $attributes = $this->attributes;
         $attributes[$name] = $value;
 
-        return new self($this->method(), $this->path(), $this->server, $this->body, $attributes);
+        return new self(null, null, $this->server, $this->body, $attributes);
     }
 
     // ─── Body ────────────────────────────────────────────────────────────────

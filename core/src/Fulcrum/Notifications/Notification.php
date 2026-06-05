@@ -16,5 +16,6 @@ class Notification
         public readonly string $body,
         public readonly array $data = [],
         public readonly array $headers = [],
+        public readonly ?string $locale = null,
     ) {}
 }

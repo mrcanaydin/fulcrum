@@ -9,6 +9,7 @@ use Fulcrum\Notifications\Notification;
 use Fulcrum\Notifications\NotificationHookListener;
 use Fulcrum\Notifications\NotificationManager;
 use Fulcrum\Queue\QueueManager;
+use Fulcrum\Internationalization\Translator;
 
 final class FulcrumNotificationTestEvent
 {
@@ -53,12 +54,14 @@ it('writes push notifications to the log channel', function () {
         title: 'Hello',
         body: 'You have a notification.',
         data: ['type' => 'test'],
+        locale: 'en',
     ));
 
     $line = file_get_contents($path);
     expect($line)->toBeString()
         ->and($line)->toContain('user:123')
         ->and($line)->toContain('You have a notification.');
+    expect($line)->toContain('"locale":"en"');
 
     unlink($path);
 });
@@ -108,6 +111,7 @@ it('sends configured notification and mail hooks for events', function () {
         new NotificationManager($config, $queues),
         new MailManager($config),
         $queues,
+        new Translator($config),
     );
 
     $listener->handle(new FulcrumNotificationTestEvent('123', 'ada@example.com'), FulcrumNotificationTestEvent::class);

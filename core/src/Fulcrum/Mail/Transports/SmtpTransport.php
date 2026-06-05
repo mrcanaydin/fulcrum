@@ -109,6 +109,10 @@ class SmtpTransport implements MailTransport
             'Content-Type' => $message->html !== null ? 'text/html; charset=UTF-8' : 'text/plain; charset=UTF-8',
         ], $message->headers());
 
+        if ($message->locale !== null && $message->locale !== '') {
+            $headers['Content-Language'] = $message->locale;
+        }
+
         $lines = [];
         foreach ($headers as $name => $value) {
             $lines[] = $this->header($name) . ': ' . $this->header($value);

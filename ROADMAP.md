@@ -122,6 +122,8 @@ Done when: production can restrict operations and detect breaking schema changes
 
 ## Sprint 10: Internationalization
 
+Status: Complete
+
 Goal: support backend locale responsibilities without coupling UI translation to the API.
 
 - Resolve locale from explicit input, user preference, `Accept-Language`, then app default.
@@ -133,6 +135,8 @@ Goal: support backend locale responsibilities without coupling UI translation to
 Done when: server-generated content is localized while frontend UI remains frontend-owned.
 
 ## Sprint 11: Subscriptions And Uploads
+
+Status: Complete
 
 Goal: support real-time events and large-file workflows with production-friendly transports.
 

@@ -58,17 +58,20 @@ it('requires json content type for graphql posts', function () {
 
 it('adds request ids to responses', function () {
     $requestId = null;
+    $topic = null;
     $response = (new RequestIdMiddleware())->handle(
-        new Request('POST', '/graphql', ['HTTP_X_REQUEST_ID' => 'req-123'], []),
-        function (Request $request) use (&$requestId): Response {
+        new Request('GET', '/graphql/stream?topic=user.created', ['HTTP_X_REQUEST_ID' => 'req-123'], []),
+        function (Request $request) use (&$requestId, &$topic): Response {
             $requestId = $request->attribute('request_id');
+            $topic = $request->query('topic');
 
             return Response::json(['ok' => true]);
         }
     );
 
     expect($response->getHeaders()['X-Request-Id'])->toBe('req-123')
-        ->and($requestId)->toBe('req-123');
+        ->and($requestId)->toBe('req-123')
+        ->and($topic)->toBe('user.created');
 });
 
 it('rate limits by client ip and path', function () {

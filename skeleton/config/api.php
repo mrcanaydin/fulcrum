@@ -8,8 +8,8 @@ return [
     'cors' => [
         'enabled' => filter_var($_ENV['CORS_ENABLED'] ?? true, FILTER_VALIDATE_BOOL),
         'allowed_origins' => array_filter(array_map('trim', explode(',', $_ENV['CORS_ALLOWED_ORIGINS'] ?? '*'))),
-        'allowed_methods' => ['POST', 'OPTIONS'],
-        'allowed_headers' => ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Request-Id'],
+        'allowed_methods' => ['GET', 'POST', 'OPTIONS'],
+        'allowed_headers' => ['Content-Type', 'Authorization', 'X-Locale', 'Last-Event-ID', 'X-Requested-With', 'X-Request-Id'],
         'max_age' => 86400,
     ],
     'rate_limit' => [

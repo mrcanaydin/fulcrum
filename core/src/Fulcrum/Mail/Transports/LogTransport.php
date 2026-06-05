@@ -26,6 +26,7 @@ class LogTransport implements MailTransport
             'text' => $message->text,
             'html' => $message->html,
             'headers' => $message->headers(),
+            'locale' => $message->locale,
             'sent_at' => gmdate(DATE_ATOM),
         ], JSON_THROW_ON_ERROR) . PHP_EOL, FILE_APPEND);
     }

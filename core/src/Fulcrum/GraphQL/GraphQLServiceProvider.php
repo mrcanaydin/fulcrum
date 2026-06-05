@@ -13,6 +13,10 @@ use GraphQL\Type\Definition\ScalarType;
 use Psr\Log\LoggerInterface;
 use Fulcrum\Cache\CacheManager;
 use GraphQL\Utils\SchemaPrinter;
+use Fulcrum\GraphQL\Subscriptions\SubscriptionAuthorizer;
+use Fulcrum\GraphQL\Subscriptions\SubscriptionBroker;
+use Fulcrum\Storage\GraphQL\SignedUploadMutation;
+use Fulcrum\Storage\SignedUpload;
 
 /**
  * Registers the GraphQL engine components into the container.
@@ -41,6 +45,8 @@ class GraphQLServiceProvider extends ServiceProvider
         $this->container->singleton(MutationTransaction::class, MutationTransaction::class);
         $this->container->singleton(PersistedQueryManager::class, PersistedQueryManager::class);
         $this->container->singleton(SchemaRegistry::class, SchemaRegistry::class);
+        $this->container->singleton(SubscriptionAuthorizer::class, SubscriptionAuthorizer::class);
+        $this->container->singleton(SubscriptionBroker::class, SubscriptionBroker::class);
 
         $this->container->singleton(Executor::class, function ($app) {
             $config = $app->make(Config::class);
@@ -53,6 +59,10 @@ class GraphQLServiceProvider extends ServiceProvider
             $classesToCompile = $config->get('graphql.types', []);
             if (is_array($classesToCompile) && !in_array(PageInfoType::class, $classesToCompile, true)) {
                 $classesToCompile[] = PageInfoType::class;
+            }
+            if (is_array($classesToCompile)) {
+                $classesToCompile[] = SignedUpload::class;
+                $classesToCompile[] = SignedUploadMutation::class;
             }
 
             $typeDefs = $attributeCompiler->compile($classesToCompile);

@@ -97,6 +97,16 @@ Supported drivers:
 - `local` via `league/flysystem-local`
 - `s3` via `league/flysystem-aws-s3-v3`
 
+Authenticated callers with the `uploads:create` ability can request an S3-compatible direct PUT URL through the built-in `createSignedUpload` mutation. The returned URL and required headers are used by the client to upload directly to object storage, so file bytes never pass through GraphQL or PHP. Signed uploads intentionally reject local disks.
+
+## Subscriptions
+
+Fulcrum compiles methods marked with `#[Subscription]` into the GraphQL schema and provides a production-friendly SSE event transport at `GET /graphql/stream?topic={topic}`. Clients authenticate with a bearer token and resume using the `Last-Event-ID` header or `after` query parameter.
+
+The transport returns the currently available event batch, then closes. SSE clients reconnect automatically after the advertised retry interval. This avoids reserving PHP-FPM workers for long-lived connections while preserving ordered delivery through the shared database event log.
+
+Configure allowed topics, required abilities, custom `SubscriptionAuthorizationHook` classes, event-to-topic publication, and retention in `config/subscriptions.php`. Run the subscription-events migration before enabling the endpoint. In multi-instance deployments, all instances must share the same database and rate-limit cache; prune or partition the event table according to traffic volume. Nginx or another reverse proxy must disable response buffering for `/graphql/stream`.
+
 ## Cache
 
 Fulcrum includes a lightweight cache manager for API infrastructure and application code.
@@ -115,6 +125,20 @@ Supported drivers:
 - `redis` via `predis/predis` for shared cache and rate limiting
 
 Applications choose their own cache keys and invalidation strategy inside their models, resolvers, and domain services.
+
+## Internationalization
+
+Fulcrum resolves request locale from explicit input, authenticated user preference, `Accept-Language`, then the application default. `RequestContext::locale()` exposes the result to resolvers.
+
+```php
+use Fulcrum\Internationalization\Translator;
+
+$translator = $container->make(Translator::class);
+$message = $translator->get('messages.welcome', ['name' => 'Ada'], 'tr');
+$cacheKey = $translator->cacheKey('dashboard', 'tr');
+```
+
+Translation catalogs are regular PHP arrays under the configured `app.lang_path`. Backend-generated validation, mail, and notification content may be localized; frontend UI translation remains client-owned. GraphQL error codes stay language-independent.
 
 ## Logging
 

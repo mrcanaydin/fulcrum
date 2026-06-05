@@ -11,10 +11,10 @@ class ValidationException extends ClientException
     /**
      * @param array<string, list<string>> $errors
      */
-    public function __construct(private readonly array $errors)
+    public function __construct(private readonly array $errors, string $message = 'The given input was invalid.')
     {
         parent::__construct(
-            'The given input was invalid.',
+            $message,
             'VALIDATION_FAILED',
             ['validation' => $errors],
         );
