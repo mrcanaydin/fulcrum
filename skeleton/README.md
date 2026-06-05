@@ -201,7 +201,7 @@ The client uploads the file bytes directly to the returned `url` using the retur
 
 ## Authentication
 
-The skeleton includes a basic credential-to-token flow suitable for API clients. Pass an optional password when creating a demo user, then exchange valid credentials through `login`. Login failures are generic and throttled, token abilities are server-configured, and issued tokens expire.
+The skeleton includes a basic credential-to-token flow suitable for API clients. A password is required when creating a user, then valid credentials may be exchanged through `login`. Login failures are generic and throttled, token abilities are server-configured, and issued tokens expire.
 
 ```graphql
 mutation {
@@ -223,6 +223,27 @@ mutation {
 ```
 
 Send the returned token as `Authorization: Bearer {accessToken}`. The authenticated `logout` mutation revokes only the token used for that request. Configure expiry, abilities, verified-email requirements, and login throttling with the `AUTH_*` environment variables. Production applications should add their own registration approval, password reset, MFA, and identity-provider policies.
+
+### Roles And Permissions
+
+Fulcrum includes Spatie-style role and permission primitives without defining your application's policy. Create permissions such as `news:create` and `news:update`, attach them to an `editor` role, then protect resolvers with the existing ability attribute:
+
+```php
+#[RequiresAbility('news:create')]
+public function createNews(mixed $root, array $args): array
+{
+    // ...
+}
+```
+
+```php
+$permissions->createRole('editor');
+$permissions->createPermission('news:create');
+$permissions->givePermissionToRole('news:create', 'editor');
+$permissions->assignRole('editor', 'users', $userId);
+```
+
+An administrator role may receive the `*` permission. Role creation, assignment mutations, and permission naming remain application-owned so projects can enforce their own administrative rules.
 
 ## Logging
 

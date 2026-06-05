@@ -11,3 +11,9 @@ it('ships an executable personal access token migration', function () {
 
     expect($migration)->toBeInstanceOf(Migration::class);
 });
+
+it('ships an executable roles and permissions migration', function () {
+    $migration = require __DIR__ . '/../../../src/Fulcrum/Auth/Migrations/create_roles_and_permissions_tables.php';
+
+    expect($migration)->toBeInstanceOf(Migration::class);
+});

@@ -14,6 +14,7 @@ class AuthServiceProvider extends ServiceProvider
         $this->container->singleton(PersonalAccessToken::class, PersonalAccessToken::class);
         $this->container->singleton(TokenManager::class, TokenManager::class);
         $this->container->singleton(TokenAuthenticator::class, TokenAuthenticator::class);
+        $this->container->singleton(PermissionManager::class, PermissionManager::class);
     }
 
     public function boot(): void

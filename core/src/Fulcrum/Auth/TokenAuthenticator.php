@@ -15,7 +15,8 @@ class TokenAuthenticator
 {
     public function __construct(
         protected PersonalAccessToken $tokens,
-        protected DatabaseManager $db
+        protected DatabaseManager $db,
+        protected PermissionManager $permissions,
     ) {}
 
     /**
@@ -93,8 +94,18 @@ class TokenAuthenticator
         // Inject the current token and abilities into the user so we can check it later
         $encodedAbilities = $tokenRecord['abilities'] ?? null;
         $abilities = is_string($encodedAbilities) ? json_decode($encodedAbilities, true) : [];
+        $abilities = is_array($abilities) ? array_values(array_filter($abilities, 'is_string')) : [];
+        try {
+            $abilities = array_values(array_unique([
+                ...$abilities,
+                ...$this->permissions->permissionsFor($tokenableType, (string) $tokenableId),
+            ]));
+            $user['_roles'] = $this->permissions->rolesFor($tokenableType, (string) $tokenableId);
+        } catch (\Throwable) {
+            $user['_roles'] = [];
+        }
         $user['_token'] = $tokenRecord;
-        $user['_token']['abilities'] = is_array($abilities) ? $abilities : [];
+        $user['_token']['abilities'] = $abilities;
 
         return $user;
     }

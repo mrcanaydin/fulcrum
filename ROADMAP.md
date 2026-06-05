@@ -160,3 +160,17 @@ Goal: provide a secure credential-to-token lifecycle for API clients.
 - Document password and token lifecycle responsibilities.
 
 Done when: clients can securely log in and out without choosing their own privileges or revoking another user's tokens.
+
+## Sprint 13: Roles And Permissions
+
+Status: Complete
+
+Goal: support application-defined user groups and permissions without hard-coding domain policy into the framework.
+
+- Make skeleton user passwords mandatory.
+- Add reusable roles, permissions, role assignments, and direct permissions.
+- Merge role and direct permissions into existing `#[RequiresAbility]` authorization.
+- Support wildcard administrator roles.
+- Document application-owned permission and management policies.
+
+Done when: applications can define groups such as admin and editor and protect existing GraphQL fields with their permissions.

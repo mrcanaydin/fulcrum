@@ -28,6 +28,7 @@ class UserFactory extends Factory
         return User::create([
             'name' => $attributes['name'],
             'email' => $attributes['email'],
+            'password_hash' => password_hash(bin2hex(random_bytes(32)), PASSWORD_DEFAULT),
             'email_verified_at' => $now,
             'created_at' => $now,
             'updated_at' => $now,

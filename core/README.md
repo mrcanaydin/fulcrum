@@ -50,6 +50,19 @@ Fulcrum reserves these core codes:
 
 Fulcrum personal access tokens are stored as SHA-256 hashes and may carry abilities and expiration timestamps. Use `TokenManager::revokeTokenForUser()` for user-facing revocation so one authenticated user cannot revoke another user's token. `TokenAuthenticator` rejects expired tokens, malformed tokenable tables, deleted users, and banned users.
 
+## Roles And Permissions
+
+`PermissionManager` provides application-defined roles, role permissions, and direct model permissions. Effective permissions are merged into authenticated token abilities, so existing `#[RequiresAbility]` guards work for both token scopes and assigned permissions.
+
+```php
+$permissions->createRole('editor');
+$permissions->createPermission('news:create');
+$permissions->givePermissionToRole('news:create', 'editor');
+$permissions->assignRole('editor', 'users', $userId);
+```
+
+Assign the `*` permission to an administrator role to satisfy every ability guard. Fulcrum intentionally does not expose generic role-management mutations; applications decide who may create roles, assign users, and define their domain permission vocabulary.
+
 Throw `Fulcrum\GraphQL\Exceptions\NotFoundException` from application resolvers when absence should be represented as an error. Unexpected exceptions remain masked in production. When request ID middleware is enabled, every GraphQL error includes the same ID returned in the `X-Request-Id` response header.
 
 ## GraphQL Types
