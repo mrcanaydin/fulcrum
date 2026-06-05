@@ -24,7 +24,8 @@ it('throws api-safe validation exceptions', function () {
         );
     } catch (ValidationException $e) {
         expect($e->errors())->toHaveKeys(['email', 'role'])
-            ->and($e->toGraphQLError()['extensions']['category'])->toBe('validation');
+            ->and($e->toGraphQLError()['extensions']['code'])->toBe('VALIDATION_FAILED')
+            ->and($e->toGraphQLError()['extensions']['validation'])->toHaveKeys(['email', 'role']);
         return;
     }
 

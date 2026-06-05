@@ -13,6 +13,9 @@ use Fulcrum\GraphQL\Attributes\Query;
 use Fulcrum\GraphQL\Attributes\Mutation;
 use Fulcrum\GraphQL\Attributes\Arg;
 use Fulcrum\GraphQL\Attributes\Authenticated;
+use Fulcrum\GraphQL\Attributes\EnumType;
+use Fulcrum\GraphQL\Attributes\InputField;
+use Fulcrum\GraphQL\Attributes\InputObject;
 
 use Fulcrum\Auth\Attributes\RequiresAbility;
 
@@ -33,7 +36,7 @@ class AttributeCompiler
         $typeDefs = [];
 
         foreach ($classes as $className) {
-            if (!class_exists($className)) {
+            if (!class_exists($className) && !enum_exists($className)) {
                 continue;
             }
 
@@ -41,6 +44,14 @@ class AttributeCompiler
 
             if ($this->hasAttribute($refClass, ObjectType::class)) {
                 $typeDefs[] = $this->compileObjectType($refClass);
+            }
+
+            if ($this->hasAttribute($refClass, InputObject::class)) {
+                $typeDefs[] = $this->compileInputObject($refClass);
+            }
+
+            if ($this->hasAttribute($refClass, EnumType::class) && $refClass->isEnum()) {
+                $typeDefs[] = $this->compileEnum($refClass);
             }
 
             // A class can also contain Queries/Mutations independently of being an ObjectType
@@ -67,6 +78,51 @@ class AttributeCompiler
         }
 
         return $typeDefs;
+    }
+
+    private function compileInputObject(ReflectionClass $refClass): TypeDef
+    {
+        /** @var InputObject $attr */
+        $attr = $this->getAttributeInstance($refClass, InputObject::class);
+        $inputFields = [];
+
+        foreach ($refClass->getProperties(ReflectionProperty::IS_PUBLIC) as $property) {
+            $attributes = $property->getAttributes(InputField::class);
+            if ($attributes === []) {
+                continue;
+            }
+
+            /** @var InputField $field */
+            $field = $attributes[0]->newInstance();
+            $inputFields[] = new InputFieldDef(
+                name: $field->name ?: $property->getName(),
+                type: $field->type,
+                description: $field->description,
+                defaultValue: $field->defaultValue,
+                hasDefault: array_key_exists('defaultValue', $attributes[0]->getArguments()),
+            );
+        }
+
+        return new TypeDef(
+            kind: TypeDef::KIND_INPUT,
+            name: $attr->name ?: $refClass->getShortName(),
+            className: $refClass->getName(),
+            description: $attr->description,
+            inputFields: $inputFields,
+        );
+    }
+
+    private function compileEnum(ReflectionClass $refClass): TypeDef
+    {
+        /** @var EnumType $attr */
+        $attr = $this->getAttributeInstance($refClass, EnumType::class);
+
+        return new TypeDef(
+            kind: TypeDef::KIND_ENUM,
+            name: $attr->name ?: $refClass->getShortName(),
+            className: $refClass->getName(),
+            description: $attr->description,
+        );
     }
 
     private function compileObjectType(ReflectionClass $refClass): TypeDef
@@ -153,6 +209,9 @@ class AttributeCompiler
             description: $description,
             authenticated: $authenticated,
             requiredAbilities: $requiredAbilities,
+            deprecationReason: $attr->deprecationReason,
+            transactional: $attr instanceof Mutation && ($attr->transactional || $attr->idempotent),
+            idempotent: $attr instanceof Mutation && $attr->idempotent,
         );
     }
 
@@ -183,6 +242,7 @@ class AttributeCompiler
             args: [],
             description: $description,
             authenticated: false, // Properties cannot have #[Authenticated] currently
+            deprecationReason: $attr->deprecationReason,
         );
     }
 

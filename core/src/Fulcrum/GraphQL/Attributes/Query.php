@@ -20,5 +20,6 @@ final class Query
         public readonly string $name        = '',
         public readonly string $type        = '',
         public readonly string $description = '',
+        public readonly ?string $deprecationReason = null,
     ) {}
 }

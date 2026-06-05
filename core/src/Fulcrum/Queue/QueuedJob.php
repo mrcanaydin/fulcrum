@@ -10,5 +10,6 @@ class QueuedJob
         public readonly string $id,
         public readonly Job $job,
         public readonly int $attempts = 0,
+        public readonly string $queue = 'default',
     ) {}
 }

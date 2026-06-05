@@ -31,12 +31,16 @@ it('creates graphQL resource files with CRUD scaffolding', function () {
 
     $files = (new ResourceCreator())->create($path, 'post', ['title:string', 'published:boolean']);
 
-    expect($files)->toHaveCount(4)
+    expect($files)->toHaveCount(6)
         ->and(file_get_contents($path . '/src/Models/Post.php'))->toContain('class Post extends Model')
         ->and(file_get_contents($path . '/src/GraphQL/PostType.php'))->toContain("public string \$title")
+        ->and(file_get_contents($path . '/src/GraphQL/PostEdge.php'))->toContain("type: 'Post!'")
+        ->and(file_get_contents($path . '/src/GraphQL/PostConnection.php'))->toContain("type: 'PageInfo!'")
+        ->and(file_get_contents($path . '/src/GraphQL/PostQuery.php'))->toContain('cursorPaginate')
         ->and(file_get_contents($path . '/src/GraphQL/PostType.php'))->toContain("public bool \$published")
         ->and(file_get_contents($path . '/src/GraphQL/PostMutation.php'))->toContain("createPost")
-        ->and(file_get_contents($path . '/src/GraphQL/PostMutation.php'))->toContain("deletePost");
+        ->and(file_get_contents($path . '/src/GraphQL/PostMutation.php'))->toContain("deletePost")
+        ->and(file_get_contents($path . '/src/GraphQL/PostMutation.php'))->toContain("#[RequiresAbility('posts:manage')]");
 
     foreach (array_reverse($files) as $file) {
         unlink($file);

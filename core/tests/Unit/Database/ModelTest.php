@@ -7,6 +7,8 @@ namespace Fulcrum\Tests\Unit\Database;
 use Fulcrum\Database\DatabaseManager;
 use Fulcrum\Database\Model;
 use Fulcrum\Foundation\Config;
+use Fulcrum\Pagination\Cursor;
+use Fulcrum\Pagination\InvalidCursorException;
 
 class ModelTestUser extends Model
 {
@@ -96,4 +98,57 @@ it('eager loads relations for model collections', function () {
         ->and($users[1]->toArray()['posts'])->toHaveCount(2)
         ->and(is_array($firstPostUser) ? ($firstPostUser['name'] ?? null) : null)->toBe('Ada')
         ->and(is_array($secondPostUser) ? ($secondPostUser['name'] ?? null) : null)->toBe('Grace');
+});
+
+it('cursor paginates models with stable page metadata', function () {
+    modelTestDatabase();
+
+    foreach (['Ada', 'Grace', 'Linus', 'Margaret', 'Edsger'] as $name) {
+        ModelTestUser::create(['name' => $name]);
+    }
+
+    $first = ModelTestUser::query()->cursorPaginate(first: 2);
+    $second = ModelTestUser::query()->cursorPaginate(first: 2, after: $first->endCursor);
+    $last = ModelTestUser::query()->cursorPaginate(first: 2, after: $second->endCursor);
+
+    expect(array_column($first->nodes, 'name'))->toBe(['Ada', 'Grace'])
+        ->and($first->hasNextPage)->toBeTrue()
+        ->and($first->hasPreviousPage)->toBeFalse()
+        ->and(Cursor::decode((string) $first->endCursor)['column'])->toBe('id')
+        ->and(array_column($second->nodes, 'name'))->toBe(['Linus', 'Margaret'])
+        ->and($second->hasNextPage)->toBeTrue()
+        ->and($second->hasPreviousPage)->toBeTrue()
+        ->and(array_column($last->nodes, 'name'))->toBe(['Edsger'])
+        ->and($last->hasNextPage)->toBeFalse();
+});
+
+it('cursor pagination supports descending traversal and bounded page sizes', function () {
+    modelTestDatabase();
+
+    foreach (['Ada', 'Grace', 'Linus'] as $name) {
+        ModelTestUser::create(['name' => $name]);
+    }
+
+    $page = ModelTestUser::query()->cursorPaginate(first: 50, direction: 'desc', maxPageSize: 2);
+
+    expect(array_column($page->nodes, 'name'))->toBe(['Linus', 'Grace'])
+        ->and($page->hasNextPage)->toBeTrue();
+});
+
+it('rejects invalid and mismatched pagination cursors with a typed client error', function () {
+    modelTestDatabase();
+    ModelTestUser::create(['name' => 'Ada']);
+
+    $invalid = null;
+    try {
+        ModelTestUser::query()->cursorPaginate(after: 'not-a-cursor');
+    } catch (InvalidCursorException $exception) {
+        $invalid = $exception;
+    }
+
+    expect($invalid)->toBeInstanceOf(InvalidCursorException::class)
+        ->and($invalid?->getExtensions()['code'])->toBe('INVALID_CURSOR')
+        ->and(fn () => ModelTestUser::query()->cursorPaginate(
+        after: Cursor::encode('created_at', '2026-06-05'),
+    ))->toThrow(InvalidCursorException::class, 'Pagination cursor does not match the requested column.');
 });

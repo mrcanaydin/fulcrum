@@ -53,6 +53,7 @@
             "Fulcrum\\Queue\\QueueServiceProvider",
             "Fulcrum\\Mail\\MailServiceProvider",
             "Fulcrum\\Notifications\\NotificationServiceProvider",
+            "Fulcrum\\Observability\\ObservabilityServiceProvider",
             "Fulcrum\\GraphQL\\GraphQLServiceProvider",
             "Fulcrum\\Storage\\StorageServiceProvider",
             "Fulcrum\\Validation\\ValidationServiceProvider"

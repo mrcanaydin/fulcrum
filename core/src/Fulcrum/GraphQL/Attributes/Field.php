@@ -20,5 +20,6 @@ final class Field
         public readonly string $name        = '',
         public readonly string $description = '',
         public readonly bool   $nullable    = true,
+        public readonly ?string $deprecationReason = null,
     ) {}
 }

@@ -22,20 +22,26 @@ final class Request
     /** @var array<string, mixed> */
     private readonly array $server;
 
+    /** @var array<string, mixed> */
+    private readonly array $attributes;
+
     /**
      * @param array<string, mixed> $server
      * @param array<string, mixed>|null $body
+     * @param array<string, mixed> $attributes
      */
     public function __construct(
         ?string $method = null,
         ?string $path = null,
         array $server = [],
         ?array $body = null,
+        array $attributes = [],
     )
     {
         $this->server  = $this->buildServer($method, $path, $server);
         $this->headers = $this->parseHeaders();
         $this->body    = $body ?? $this->parseJsonBody();
+        $this->attributes = $attributes;
     }
 
     public static function capture(): static
@@ -131,6 +137,19 @@ final class Request
         }
 
         return null;
+    }
+
+    public function attribute(string $name, mixed $default = null): mixed
+    {
+        return $this->attributes[$name] ?? $default;
+    }
+
+    public function withAttribute(string $name, mixed $value): self
+    {
+        $attributes = $this->attributes;
+        $attributes[$name] = $value;
+
+        return new self($this->method(), $this->path(), $this->server, $this->body, $attributes);
     }
 
     // ─── Body ────────────────────────────────────────────────────────────────

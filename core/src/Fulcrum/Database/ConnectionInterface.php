@@ -11,6 +11,27 @@ use Fulcrum\Support\Collection;
  */
 interface ConnectionInterface
 {
+    public function beginTransaction(): void;
+
+    public function commit(): void;
+
+    public function rollBack(): void;
+
+    public function transactionLevel(): int;
+
+    /**
+     * @template T
+     * @param callable(): T $callback
+     * @return T
+     */
+    public function transaction(callable $callback): mixed;
+
+    /**
+     * Run a callback after the outermost transaction commits, or immediately
+     * when there is no active transaction.
+     */
+    public function afterCommit(callable $callback): void;
+
     /**
      * Start a new fluent query builder instance.
      */
@@ -21,7 +42,7 @@ interface ConnectionInterface
      *
      * @param string $query (SQL or serialized Mongo command)
      * @param array<mixed> $bindings
-     * @return Collection<int, array<string, mixed>>
+     * @return Collection<array<string, mixed>>
      */
     public function select(string $query, array $bindings = []): Collection;
 
@@ -55,5 +76,6 @@ interface ConnectionInterface
     /**
      * Execute a raw statement (like DDL).
      */
+    /** @param array<mixed> $bindings */
     public function statement(string $query, array $bindings = []): bool;
 }

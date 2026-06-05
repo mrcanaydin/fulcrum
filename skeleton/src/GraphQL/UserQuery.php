@@ -17,13 +17,16 @@ class UserQuery
         return User::find((string) $args['id'])?->toArray();
     }
 
-    #[Query(name: 'users', type: '[User!]!', description: 'List recent users.')]
-    #[Arg(name: 'limit', type: 'Int', defaultValue: 25)]
+    #[Query(name: 'users', type: 'UserConnection!', description: 'List users using forward cursor pagination.')]
+    #[Arg(name: 'first', type: 'Int', defaultValue: 25)]
+    #[Arg(name: 'after', type: 'String')]
     public function users(mixed $root, array $args): array
     {
         return User::query()
-            ->latest()
-            ->limit(max(1, min((int) ($args['limit'] ?? 25), 100)))
+            ->cursorPaginate(
+                first: (int) ($args['first'] ?? 25),
+                after: isset($args['after']) ? (string) $args['after'] : null,
+            )
             ->toArray();
     }
 }

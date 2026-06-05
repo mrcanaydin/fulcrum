@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Fulcrum\Events;
 
 use Fulcrum\Container\Container;
+use Fulcrum\Database\DatabaseManager;
 use InvalidArgumentException;
 
 class EventDispatcher
@@ -12,7 +13,10 @@ class EventDispatcher
     /** @var array<string, list<callable|class-string>> */
     private array $listeners = [];
 
-    public function __construct(private readonly Container $container) {}
+    public function __construct(
+        private readonly Container $container,
+        private readonly ?DatabaseManager $db = null,
+    ) {}
 
     /** @param callable|class-string $listener */
     public function listen(string $event, callable|string $listener): void
@@ -40,6 +44,17 @@ class EventDispatcher
         }
 
         return $responses;
+    }
+
+    public function dispatchAfterCommit(object|string $event, mixed $payload = null, ?string $connection = null): void
+    {
+        if ($this->db === null) {
+            $this->dispatch($event, $payload);
+
+            return;
+        }
+
+        $this->db->afterCommit(fn (): array => $this->dispatch($event, $payload), $connection);
     }
 
     /** @return array<string, list<callable|class-string>> */

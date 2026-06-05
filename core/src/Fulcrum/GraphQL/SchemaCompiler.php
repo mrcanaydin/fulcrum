@@ -5,9 +5,15 @@ declare(strict_types=1);
 namespace Fulcrum\GraphQL;
 
 use GraphQL\Type\Schema;
+use GraphQL\Type\Definition\InputObjectType;
 use GraphQL\Type\Definition\ObjectType;
+use GraphQL\Type\Definition\PhpEnumType;
+use GraphQL\Type\Definition\ScalarType;
 use GraphQL\Type\Definition\Type;
 use Fulcrum\Container\Contracts\ContainerInterface;
+use Fulcrum\GraphQL\Exceptions\ForbiddenException;
+use Fulcrum\GraphQL\Exceptions\UnauthenticatedException;
+use Fulcrum\GraphQL\Exceptions\IdempotencyException;
 
 /**
  * Converts an array of TypeDef IR objects into a webonyx GraphQL Schema.
@@ -18,24 +24,30 @@ class SchemaCompiler
     private array $typeCache = [];
 
     /** @var array<string, TypeDef> */
-    private array $objectDefs = [];
+    private array $namedDefs = [];
+
+    /** @var array<string, ScalarType> */
+    private array $scalarTypes = [];
 
     public function __construct(
-        private readonly ContainerInterface $container
+        private readonly ContainerInterface $container,
+        private readonly ?ResolverMetrics $resolverMetrics = null,
     ) {}
 
     /**
      * @param array<int, TypeDef> $typeDefs
+     * @param array<string, ScalarType> $scalarTypes
      */
-    public function compile(array $typeDefs): Schema
+    public function compile(array $typeDefs, array $scalarTypes = []): Schema
     {
         $queryFields    = [];
         $mutationFields = [];
+        $this->scalarTypes = $scalarTypes;
 
-        // 1. First pass: Register object definitions
+        // 1. First pass: Register named definitions
         foreach ($typeDefs as $def) {
-            if ($def->kind === TypeDef::KIND_OBJECT) {
-                $this->objectDefs[$def->name] = $def;
+            if (in_array($def->kind, [TypeDef::KIND_OBJECT, TypeDef::KIND_INPUT, TypeDef::KIND_ENUM], true)) {
+                $this->namedDefs[$def->name] = $def;
             }
         }
 
@@ -98,29 +110,51 @@ class SchemaCompiler
             $compiled[$field->name] = [
                 'type'        => $this->parseTypeString($field->type),
                 'description' => $field->description,
+                'deprecationReason' => $field->deprecationReason,
                 'args'        => $compiledArgs,
-                'resolve'     => $this->createResolver($className, $field->methodName, $field->authenticated, $field->requiredAbilities),
+                'resolve'     => $this->createResolver(
+                    $className,
+                    $field->methodName,
+                    $field->authenticated,
+                    $field->requiredAbilities,
+                    $field->transactional,
+                    $field->idempotent,
+                ),
             ];
         }
 
         return $compiled;
     }
 
-    private function createResolver(string $className, string $methodName, bool $authenticated, array $requiredAbilities = []): callable
+    private function createResolver(
+        string $className,
+        string $methodName,
+        bool $authenticated,
+        array $requiredAbilities = [],
+        bool $transactional = false,
+        bool $idempotent = false,
+    ): callable
     {
-        return function ($root, array $args, RequestContext $context) use ($className, $methodName, $authenticated, $requiredAbilities) {
-            if ($authenticated && !$context->isAuth()) {
-                throw new \Exception('Unauthenticated.');
+        $resolver = function ($root, array $args, RequestContext $context) use (
+            $className,
+            $methodName,
+            $authenticated,
+            $requiredAbilities,
+            $transactional,
+            $idempotent,
+        ) {
+            if (($authenticated || !empty($requiredAbilities)) && !$context->isAuth()) {
+                throw new UnauthenticatedException();
             }
 
-            if (!empty($requiredAbilities) && $context->isAuth()) {
+            if (!empty($requiredAbilities)) {
                 $user = $context->user();
                 $tokenAbilities = $user['_token']['abilities'] ?? [];
                 
                 if (!in_array('*', $tokenAbilities)) {
                     foreach ($requiredAbilities as $ability) {
                         if (!in_array($ability, $tokenAbilities)) {
-                            throw new \Exception("Missing required ability: {$ability}");
+                            throw new ForbiddenException("Missing required ability: {$ability}");
                         }
                     }
                 }
@@ -132,26 +166,75 @@ class SchemaCompiler
             // If the root object IS an instance of $className, we can call it directly.
             // If the field is on Query/Mutation, we resolve $className via container.
 
-            if ($root instanceof $className && method_exists($root, $methodName)) {
-                return $root->{$methodName}($root, $args, $context);
-            }
+            $invoke = function () use ($root, $args, $context, $className, $methodName): mixed {
+                if ($root instanceof $className && method_exists($root, $methodName)) {
+                    return $root->{$methodName}($root, $args, $context);
+                }
             
-            // Try property access if no method
-            if ($root instanceof $className && property_exists($root, $methodName)) {
-                return $root->{$methodName};
-            }
+                // Try property access if no method
+                if ($root instanceof $className && property_exists($root, $methodName)) {
+                    return $root->{$methodName};
+                }
             
-            // Array/Object property fallback for basic ObjectTypes
-            if (is_array($root) && array_key_exists($methodName, $root)) {
-                return $root[$methodName];
-            }
-            if (is_object($root) && property_exists($root, $methodName)) {
-                return $root->{$methodName};
+                // Array/Object property fallback for basic ObjectTypes
+                if (is_array($root) && array_key_exists($methodName, $root)) {
+                    return $root[$methodName];
+                }
+                if (is_object($root) && property_exists($root, $methodName)) {
+                    return $root->{$methodName};
+                }
+
+                // Resolve controller/resolver from DI container (typical for Query/Mutation)
+                $resolverInstance = $this->container->get($className);
+                return $resolverInstance->{$methodName}($root, $args, $context);
+            };
+
+            if (!$transactional) {
+                return $invoke();
             }
 
-            // Resolve controller/resolver from DI container (typical for Query/Mutation)
-            $resolverInstance = $this->container->get($className);
-            return $resolverInstance->{$methodName}($root, $args, $context);
+            $transactions = $this->container->get(MutationTransaction::class);
+            if (!$transactions instanceof MutationTransaction) {
+                throw new \RuntimeException('Mutation transaction service is not registered.');
+            }
+
+            if (!$idempotent) {
+                return $transactions->run($invoke);
+            }
+
+            $key = $context->request()->header('idempotency-key');
+            if ($key === null) {
+                throw new IdempotencyException(
+                    'This mutation requires an Idempotency-Key header.',
+                    'IDEMPOTENCY_KEY_REQUIRED',
+                );
+            }
+
+            $actor = $context->user();
+            $actorId = is_array($actor) && isset($actor['id']) && is_scalar($actor['id'])
+                ? (string) $actor['id']
+                : 'anonymous';
+            $scope = hash('sha256', $actorId . ':' . $className . ':' . $methodName);
+            $fingerprint = hash('sha256', serialize($args));
+
+            return $transactions->idempotent($scope, $key, $fingerprint, $invoke);
+        };
+
+        return function ($root, array $args, RequestContext $context) use (
+            $resolver,
+            $className,
+            $methodName,
+        ): mixed {
+            if ($this->resolverMetrics === null) {
+                return $resolver($root, $args, $context);
+            }
+
+            return $this->resolverMetrics->measure(
+                $className,
+                $methodName,
+                $context,
+                fn (): mixed => $resolver($root, $args, $context),
+            );
         };
     }
 
@@ -161,15 +244,27 @@ class SchemaCompiler
             return $this->typeCache[$name];
         }
 
-        // Check if it's a defined ObjectType
-        if (isset($this->objectDefs[$name])) {
-            $def = $this->objectDefs[$name];
-            
-            $this->typeCache[$name] = new ObjectType([
-                'name'        => $def->name,
-                'description' => $def->description,
-                'fields'      => fn() => $this->compileFields($def->fields, $def->className),
-            ]);
+        if (isset($this->scalarTypes[$name])) {
+            return $this->typeCache[$name] = $this->scalarTypes[$name];
+        }
+
+        if (isset($this->namedDefs[$name])) {
+            $def = $this->namedDefs[$name];
+
+            $this->typeCache[$name] = match ($def->kind) {
+                TypeDef::KIND_OBJECT => new ObjectType([
+                    'name' => $def->name,
+                    'description' => $def->description,
+                    'fields' => fn() => $this->compileFields($def->fields, $def->className),
+                ]),
+                TypeDef::KIND_INPUT => new InputObjectType([
+                    'name' => $def->name,
+                    'description' => $def->description,
+                    'fields' => fn() => $this->compileInputFields($def->inputFields),
+                ]),
+                TypeDef::KIND_ENUM => new PhpEnumType($def->className, $def->name, $def->description),
+                default => throw new \Exception("Unknown GraphQL type kind: {$def->kind}"),
+            };
 
             return $this->typeCache[$name];
         }
@@ -226,5 +321,27 @@ class SchemaCompiler
         }
 
         return $baseType;
+    }
+
+    /**
+     * @param array<int, InputFieldDef> $fields
+     * @return array<string, array<string, mixed>>
+     */
+    private function compileInputFields(array $fields): array
+    {
+        $compiled = [];
+
+        foreach ($fields as $field) {
+            $compiled[$field->name] = [
+                'type' => $this->parseTypeString($field->type),
+                'description' => $field->description,
+            ];
+
+            if ($field->hasDefault) {
+                $compiled[$field->name]['defaultValue'] = $field->defaultValue;
+            }
+        }
+
+        return $compiled;
     }
 }

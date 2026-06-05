@@ -7,6 +7,7 @@ namespace App\GraphQL;
 use App\Events\UserCreated;
 use App\Jobs\SendEmailVerificationJob;
 use App\Models\User;
+use Fulcrum\Auth\Attributes\RequiresAbility;
 use Fulcrum\Events\EventDispatcher;
 use Fulcrum\Foundation\Config;
 use Fulcrum\GraphQL\Attributes\Arg;
@@ -23,7 +24,7 @@ class UserMutation
         private readonly Config $config,
     ) {}
 
-    #[Mutation(name: 'createUser', type: 'User!', description: 'Create an example user.')]
+    #[Mutation(name: 'createUser', type: 'User!', description: 'Create an example user.', idempotent: true)]
     #[Arg(name: 'name', type: 'String!')]
     #[Arg(name: 'email', type: 'String!')]
     #[Arg(name: 'avatar', type: 'String')]
@@ -68,10 +69,10 @@ class UserMutation
             'updated_at' => $now,
         ])->toArray();
 
-        $this->events->dispatch(new UserCreated((string) $user['id'], (string) $user['email']));
+        $this->events->dispatchAfterCommit(new UserCreated((string) $user['id'], (string) $user['email']));
 
         if ($verificationEnabled && is_string($verificationToken)) {
-            $this->queues->dispatch(new SendEmailVerificationJob((string) $user['email'], $verificationToken));
+            $this->queues->dispatchAfterCommit(new SendEmailVerificationJob((string) $user['email'], $verificationToken));
         }
 
         return $user;
@@ -147,6 +148,7 @@ class UserMutation
     }
 
     #[Mutation(name: 'banUser', type: 'User', description: 'Ban a user with a reason.')]
+    #[RequiresAbility('users:manage')]
     #[Arg(name: 'id', type: 'ID!')]
     #[Arg(name: 'reason', type: 'String!')]
     public function banUser(mixed $root, array $args): ?array
@@ -167,6 +169,7 @@ class UserMutation
     }
 
     #[Mutation(name: 'unbanUser', type: 'User', description: 'Remove a user ban.')]
+    #[RequiresAbility('users:manage')]
     #[Arg(name: 'id', type: 'ID!')]
     public function unbanUser(mixed $root, array $args): ?array
     {

@@ -14,6 +14,10 @@ use Fulcrum\Routing\Middleware\RequestIdMiddleware;
 use Fulcrum\Routing\Request;
 use Fulcrum\Routing\Response;
 use Fulcrum\Routing\Router;
+use Fulcrum\Database\DatabaseManager;
+use Fulcrum\Queue\QueueManager;
+use Fulcrum\Storage\StorageManager;
+use Fulcrum\Observability\HealthChecker;
 
 function middlewareConfig(): Config
 {
@@ -53,12 +57,18 @@ it('requires json content type for graphql posts', function () {
 });
 
 it('adds request ids to responses', function () {
+    $requestId = null;
     $response = (new RequestIdMiddleware())->handle(
         new Request('POST', '/graphql', ['HTTP_X_REQUEST_ID' => 'req-123'], []),
-        fn () => Response::json(['ok' => true])
+        function (Request $request) use (&$requestId): Response {
+            $requestId = $request->attribute('request_id');
+
+            return Response::json(['ok' => true]);
+        }
     );
 
-    expect($response->getHeaders()['X-Request-Id'])->toBe('req-123');
+    expect($response->getHeaders()['X-Request-Id'])->toBe('req-123')
+        ->and($requestId)->toBe('req-123');
 });
 
 it('rate limits by client ip and path', function () {
@@ -103,20 +113,69 @@ it('runs middleware in order around the handler', function () {
     expect($response->getHeaders()['X-Request-Id'])->toBe('req-456');
 });
 
-it('serves json metadata and health endpoints for api previews', function () {
+it('serves json metadata and real liveness and readiness endpoints', function () {
     $container = new Container();
     $config = middlewareConfig();
+    $storageRoot = sys_get_temp_dir() . '/fulcrum-health-' . bin2hex(random_bytes(6));
+    mkdir($storageRoot, 0777, true);
+    $config->set('database.default', 'sqlite');
+    $config->set('database.connections.sqlite', ['driver' => 'sqlite', 'database' => ':memory:']);
     $config->set('cache.default', 'array');
+    $config->set('cache.stores.array', ['driver' => 'array']);
+    $config->set('queue.default', 'sync');
+    $config->set('queue.connections.sync', ['driver' => 'sync']);
+    $config->set('storage.default', 'local');
+    $config->set('storage.disks.local', ['driver' => 'local', 'root' => $storageRoot]);
     $container->instance(Config::class, $config);
+    $container->instance(HealthChecker::class, new HealthChecker(
+        $config,
+        new DatabaseManager($config),
+        new CacheManager($config),
+        new QueueManager($config, new DatabaseManager($config)),
+        new StorageManager($config),
+    ));
 
     $router = new Router($container);
     $root = $router->handle(new Request('GET', '/', [], []));
+    $live = $router->handle(new Request('GET', '/health/live', [], []));
+    $ready = $router->handle(new Request('GET', '/health/ready', [], []));
     $health = $router->handle(new Request('GET', '/health', [], []));
 
     expect($root->getStatusCode())->toBe(200)
         ->and($root->getData()['mode'])->toBe('headless')
+        ->and($live->getStatusCode())->toBe(200)
+        ->and($live->getData())->toBe(['status' => 'ok'])
+        ->and($ready->getStatusCode())->toBe(200)
+        ->and($ready->getData()['checks'])->toHaveKeys(['database', 'cache', 'queue', 'storage'])
         ->and($health->getStatusCode())->toBe(200)
-        ->and($health->getData())->toBe(['status' => 'ok']);
+        ->and($health->getData()['status'])->toBe('ok');
+
+    rmdir($storageRoot . '/.fulcrum-health');
+    rmdir($storageRoot);
+});
+
+it('returns service unavailable when a readiness dependency fails', function () {
+    $container = new Container();
+    $config = middlewareConfig();
+    $config->set('database.default', 'sqlite');
+    $config->set('database.connections.sqlite', [
+        'driver' => 'sqlite',
+        'database' => '/missing/fulcrum/health.sqlite',
+    ]);
+    $config->set('health.checks.cache', false);
+    $config->set('health.checks.queue', false);
+    $config->set('health.checks.storage', false);
+    $config->set('cache.default', 'unsupported');
+    $container->instance(Config::class, $config);
+
+    $router = new Router($container);
+    $live = $router->handle(new Request('GET', '/health/live', [], []));
+    $response = $router->handle(new Request('GET', '/health/ready', [], []));
+
+    expect($live->getStatusCode())->toBe(200)
+        ->and($response->getStatusCode())->toBe(503)
+        ->and($response->getData()['status'])->toBe('unhealthy')
+        ->and($response->getData()['checks']['database']['status'])->toBe('failed');
 });
 
 it('keeps graphql execution post-only', function () {

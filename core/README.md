@@ -18,6 +18,69 @@ php -S 127.0.0.1:8000 -t public
 
 Browser previews can open `GET /` for API metadata. Infrastructure probes can use `GET /health`. GraphQL operations execute through `POST /graphql`.
 
+## GraphQL Errors
+
+Client-safe GraphQL errors expose a stable `extensions.code`. Clients should branch on this code instead of parsing the human-readable message.
+
+```json
+{
+  "errors": [
+    {
+      "message": "The given input was invalid.",
+      "extensions": {
+        "code": "VALIDATION_FAILED",
+        "validation": {
+          "email": ["The email must be a valid email address."]
+        },
+        "requestId": "req-123"
+      }
+    }
+  ]
+}
+```
+
+Fulcrum reserves these core codes:
+
+- `UNAUTHENTICATED` for requests without a required identity
+- `FORBIDDEN` for authenticated callers without permission
+- `VALIDATION_FAILED` with field errors in `extensions.validation`
+- `NOT_FOUND` for requested resources that do not exist
+
+Throw `Fulcrum\GraphQL\Exceptions\NotFoundException` from application resolvers when absence should be represented as an error. Unexpected exceptions remain masked in production. When request ID middleware is enabled, every GraphQL error includes the same ID returned in the `X-Request-Id` response header.
+
+## GraphQL Types
+
+Fulcrum supports attributed object types, input objects, native PHP enums, field deprecation, and custom scalars.
+
+```php
+#[InputObject(name: 'CreatePostInput')]
+class CreatePostInput
+{
+    #[InputField(type: 'String!')]
+    public string $title;
+}
+
+#[EnumType(name: 'PostStatus')]
+enum PostStatus: string
+{
+    case DRAFT = 'draft';
+    case PUBLISHED = 'published';
+}
+```
+
+Built-in custom scalars are `Date`, `DateTime`, `JSON`, `Decimal`, and `URL`. Register application scalars in `config/graphql.php` by name using a `GraphQL\Type\Definition\ScalarType` instance or class:
+
+```php
+return [
+    'types' => [CreatePostInput::class, PostStatus::class],
+    'scalars' => [
+        'Money' => App\GraphQL\Scalars\MoneyScalar::class,
+    ],
+];
+```
+
+Add `deprecationReason` to `#[Field]`, `#[Query]`, or `#[Mutation]` to expose schema deprecation metadata.
+
 ## Storage
 
 Fulcrum ships with Flysystem 3-backed storage disks.
@@ -181,7 +244,7 @@ class User extends Model
 }
 ```
 
-`make:resource` creates a model plus GraphQL type/query/mutation CRUD scaffolding. Register the generated GraphQL classes in `config/graphql.php`.
+`make:resource` creates a model plus GraphQL type, edge, connection, query, and mutation CRUD scaffolding. Register the generated GraphQL classes in `config/graphql.php`.
 
 Use eager loading to batch relationship queries and avoid N+1 resolver loops:
 
@@ -195,6 +258,91 @@ GraphQL resolvers also receive a request-scoped DataLoader registry via `Request
 $loader = $context->loaders()->getOrRegister('users.by_id', fn (array $ids) => $usersById);
 $user = $loader->load($id);
 ```
+
+## Cursor Pagination
+
+Model queries provide bounded forward cursor pagination:
+
+```php
+$connection = Post::query()->cursorPaginate(
+    first: 25,
+    after: $args['after'] ?? null,
+);
+
+return $connection->toArray();
+```
+
+Connections contain `nodes`, `edges`, and `pageInfo`. Cursors are opaque to clients and encode the deterministic cursor column, which defaults to the model primary key. `make:resource` generates resource edge and connection GraphQL types plus a cursor-paginated list query.
+
+Malformed or mismatched cursors return the client-safe GraphQL error code `INVALID_CURSOR`.
+
+## Query Safety
+
+GraphQL documents are parsed and checked before resolver execution. Configure limits under `graphql.security`:
+
+```php
+'security' => [
+    'max_depth' => 12,
+    'max_complexity' => 200,
+    'max_aliases' => 20,
+    'max_operations' => 1,
+    'max_execution_ms' => 0,
+    'introspection' => false,
+],
+```
+
+Rejected operations return stable codes: `QUERY_DEPTH_EXCEEDED`, `QUERY_COMPLEXITY_EXCEEDED`, `ALIAS_LIMIT_EXCEEDED`, `OPERATION_LIMIT_EXCEEDED`, `INTROSPECTION_DISABLED`, or `GRAPHQL_VALIDATION_FAILED`.
+
+Every completed operation logs its operation name, request ID, duration, complexity, and error status. Because Fulcrum currently executes GraphQL synchronously, `max_execution_ms` detects and rejects an over-budget response after execution; use web-server and process-level timeouts for hard cancellation.
+
+Resolver metrics are also logged with resolver class/method, request ID, duration, status, and a slow flag. Configure `graphql.observability.slow_resolver_ms` to elevate slow resolver records to warnings.
+
+## Health Checks
+
+Fulcrum exposes separate infrastructure probes:
+
+- `GET /health/live` checks only that the PHP process can serve a response.
+- `GET /health/ready` runs real database, cache, queue, and storage probes.
+- `GET /health` and `GET /ready` are readiness aliases.
+
+Readiness performs `SELECT 1`, cache write/read/delete, queue metrics access, and storage write/read/delete. It returns HTTP `503` with per-component status and duration when any enabled dependency fails. Health routes bypass normal API middleware so a failed cache-backed rate limiter cannot hide the actual health result.
+
+Configure individual probes under `health.checks`. Internal exception messages are only included when `app.debug` is enabled.
+
+## Transactions And Reliable Mutations
+
+PDO connections expose `transaction()`, nested transactions through savepoints, and `afterCommit()`. Failed callbacks roll back their database writes and discard side effects waiting for commit.
+
+```php
+$result = $db->transaction(function () use ($db, $events, $queues) {
+    $id = $db->table('orders')->insert(['status' => 'created']);
+
+    $events->dispatchAfterCommit(new OrderCreated((string) $id));
+    $queues->dispatchAfterCommit(new SendOrderEmail((string) $id));
+
+    return $id;
+});
+```
+
+GraphQL mutations opt in through `#[Mutation]`:
+
+```php
+#[Mutation(name: 'createOrder', type: 'Order!', transactional: true)]
+public function createOrder(mixed $root, array $args): array
+{
+    // The resolver commits on success and rolls back when it throws.
+}
+
+#[Mutation(name: 'chargeOrder', type: 'Charge!', idempotent: true)]
+public function chargeOrder(mixed $root, array $args): array
+{
+    // idempotent implies transactional
+}
+```
+
+Idempotent mutations require an `Idempotency-Key` request header and an `idempotency_keys` table. Repeating the same key and arguments replays the stored resolver result; reusing a key with different arguments returns `IDEMPOTENCY_KEY_REUSED`.
+
+The current MongoDB driver does not support transactions. Calling its transaction APIs throws an explicit runtime exception.
 
 ## Commands, Scheduling & Queues
 
@@ -242,7 +390,19 @@ Run due schedules from cron:
 
 Jobs implement `Fulcrum\Queue\Job` and define a `handle()` method. The handler is container-aware, so services such as `MailManager` can be type-hinted directly. Supported queue drivers are `sync` and `database`.
 
-`php fulcrum queue:work` listens continuously. Use `--max-jobs=1` or another positive limit for smoke tests, CI, or one-shot cron-style processing.
+The database queue conditionally claims jobs so concurrent workers cannot reserve the same row. Stale reservations become available after `retry_after`. Failed attempts use exponential backoff, and terminal failures move to the `failed_jobs` dead-letter table instead of being discarded.
+
+```bash
+php fulcrum queue:work --tries=3 --timeout=60 --backoff=5 --max-backoff=300
+php fulcrum queue:status
+php fulcrum queue:failed
+php fulcrum queue:retry        # retry all failed jobs
+php fulcrum queue:retry 42     # retry one failed-job ID
+```
+
+Workers handle `SIGTERM` and `SIGINT` gracefully after the current job. Hard job timeouts require the PHP `pcntl` extension; without it, jobs still run but cannot be interrupted in-process. Worker logs include job duration, attempt count, pending queue depth, and failed-job count.
+
+Use `--max-jobs=1` or another positive limit for smoke tests, CI, or one-shot cron-style processing.
 
 ## Validation & Sanitization
 

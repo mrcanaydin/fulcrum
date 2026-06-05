@@ -38,11 +38,43 @@ class QueueManager
         $this->connection()->push($job, $delaySeconds);
     }
 
+    public function dispatchAfterCommit(Job $job, int $delaySeconds = 0, ?string $databaseConnection = null): void
+    {
+        $this->db->afterCommit(
+            function () use ($job, $delaySeconds): void {
+                $this->dispatch($job, $delaySeconds);
+            },
+            $databaseConnection,
+        );
+    }
+
     public function defaultConnection(): string
     {
         $default = $this->config->get('queue.default', 'sync');
 
         return is_string($default) && $default !== '' ? $default : 'sync';
+    }
+
+    /** @return array{pending: int, failed: int} */
+    public function metrics(?string $name = null): array
+    {
+        $queue = $this->connection($name);
+
+        return [
+            'pending' => $queue->size(),
+            'failed' => $queue->failedCount(),
+        ];
+    }
+
+    public function retryFailed(?string $id = null, ?string $name = null): int
+    {
+        return $this->connection($name)->retryFailed($id);
+    }
+
+    /** @return list<array<string, mixed>> */
+    public function failed(?string $id = null, ?string $name = null): array
+    {
+        return $this->connection($name)->failed($id);
     }
 
     private function make(string $name): Queue
@@ -65,6 +97,8 @@ class QueueManager
                 $this->db,
                 is_string($config['table'] ?? null) ? $config['table'] : 'jobs',
                 is_string($config['queue'] ?? null) ? $config['queue'] : 'default',
+                is_string($config['failed_table'] ?? null) ? $config['failed_table'] : 'failed_jobs',
+                is_numeric($config['retry_after'] ?? null) ? max(1, (int) $config['retry_after']) : 90,
             ),
             default => throw new InvalidArgumentException("Unsupported queue driver [{$driver}]."),
         };

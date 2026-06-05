@@ -15,6 +15,8 @@ final class TypeDef
     public const KIND_OBJECT   = 'object';
     public const KIND_QUERY    = 'query';
     public const KIND_MUTATION = 'mutation';
+    public const KIND_INPUT    = 'input';
+    public const KIND_ENUM     = 'enum';
 
     /**
      * @param string                    $kind      One of the KIND_* constants
@@ -22,6 +24,7 @@ final class TypeDef
      * @param string                    $className FQCN of the resolver/type class
      * @param array<int, FieldDef>      $fields
      * @param string                    $description
+     * @param array<int, InputFieldDef> $inputFields
      */
     public function __construct(
         public readonly string $kind,
@@ -29,5 +32,6 @@ final class TypeDef
         public readonly string $className,
         public readonly array  $fields      = [],
         public readonly string $description = '',
+        public readonly array  $inputFields = [],
     ) {}
 }

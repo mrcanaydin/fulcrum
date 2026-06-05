@@ -10,6 +10,7 @@ use Fulcrum\Database\ConnectionInterface;
 use Fulcrum\Database\QueryBuilder;
 use Fulcrum\Database\Grammar\MongoGrammar;
 use Fulcrum\Support\Collection;
+use RuntimeException;
 
 /**
  * MongoDB Driver implementation using mongodb/mongodb.
@@ -28,6 +29,36 @@ class MongoDriver implements ConnectionInterface
     public function table(string $table): QueryBuilder
     {
         return (new QueryBuilder($this, new MongoGrammar()))->table($table);
+    }
+
+    public function beginTransaction(): void
+    {
+        throw new RuntimeException('MongoDB transactions are not supported by this driver yet.');
+    }
+
+    public function commit(): void
+    {
+        throw new RuntimeException('MongoDB transactions are not supported by this driver yet.');
+    }
+
+    public function rollBack(): void
+    {
+        throw new RuntimeException('MongoDB transactions are not supported by this driver yet.');
+    }
+
+    public function transactionLevel(): int
+    {
+        return 0;
+    }
+
+    public function transaction(callable $callback): mixed
+    {
+        throw new RuntimeException('MongoDB transactions are not supported by this driver yet.');
+    }
+
+    public function afterCommit(callable $callback): void
+    {
+        $callback();
     }
 
     public function select(string $query, array $bindings = []): Collection

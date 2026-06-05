@@ -15,6 +15,8 @@ use Fulcrum\Database\Seeders\SeederRunner;
 use Fulcrum\Foundation\Application as Kernel;
 use Fulcrum\GraphQL\ResourceCreator;
 use Fulcrum\Queue\QueueWorker;
+use Fulcrum\Queue\QueueManager;
+use Fulcrum\Foundation\Config;
 use Fulcrum\Schedule\ScheduledCommand;
 use Fulcrum\Schedule\ScheduleRunner;
 use Fulcrum\Support\Str;
@@ -37,6 +39,9 @@ class Application
                 'db:seed' => $this->seed($argv[2] ?? ''),
                 'schedule:run' => $this->runSchedule(),
                 'queue:work' => $this->workQueue(array_slice($argv, 2)),
+                'queue:status' => $this->queueStatus(),
+                'queue:failed' => $this->failedJobs($argv[2] ?? ''),
+                'queue:retry' => $this->retryFailedJob($argv[2] ?? ''),
                 'make:migration' => $this->makeMigration($argv[2] ?? ''),
                 'make:model' => $this->makeModel($argv[2] ?? ''),
                 'make:resource' => $this->makeResource($argv[2] ?? '', array_slice($argv, 3)),
@@ -169,7 +174,7 @@ class Application
         }
 
         $model = (new ModelCreator())->className($name);
-        $this->line("Register App\\GraphQL\\{$model}Type, {$model}Query, and {$model}Mutation in config/graphql.php.");
+        $this->line("Register the generated App\\GraphQL\\{$model} types, query, and mutation in config/graphql.php.");
 
         return 0;
     }
@@ -196,6 +201,9 @@ class Application
         $this->line('  db:seed [class]     Run database seeders');
         $this->line('  schedule:run        Run due scheduled commands');
         $this->line('  queue:work          Listen for queued jobs');
+        $this->line('  queue:status        Show pending and failed job counts');
+        $this->line('  queue:failed [id]   List failed jobs');
+        $this->line('  queue:retry [id]    Retry one or all failed jobs');
         $this->line('  make:migration name Create a new migration file');
         $this->line('  make:model name     Create a new model class');
         $this->line('  make:resource name fields... Create model and GraphQL CRUD classes');
@@ -254,15 +262,82 @@ class Application
             throw new \RuntimeException('Queue worker is not registered.');
         }
 
+        $config = $this->kernel->container()->make(Config::class);
+        if (!$config instanceof Config) {
+            throw new \RuntimeException('Configuration is not registered.');
+        }
+
         $processed = $worker->work(
             (int) $input->stringOption('max-jobs', '0'),
             (int) $input->stringOption('sleep', '1'),
-            (int) $input->stringOption('tries', '3'),
+            (int) $input->stringOption('tries', (string) $this->configInt($config, 'queue.worker.tries', 3)),
+            (int) $input->stringOption('timeout', (string) $this->configInt($config, 'queue.worker.timeout', 0)),
+            (int) $input->stringOption('backoff', (string) $this->configInt($config, 'queue.worker.backoff', 5)),
+            (int) $input->stringOption('max-backoff', (string) $this->configInt($config, 'queue.worker.max_backoff', 300)),
         );
 
         $this->line("Processed jobs: {$processed}");
 
         return 0;
+    }
+
+    private function queueStatus(): int
+    {
+        $metrics = $this->queueManager()->metrics();
+        $this->line("Pending jobs: {$metrics['pending']}");
+        $this->line("Failed jobs: {$metrics['failed']}");
+
+        return 0;
+    }
+
+    private function retryFailedJob(string $id): int
+    {
+        $retried = $this->queueManager()->retryFailed($id !== '' ? $id : null);
+        $this->line("Retried jobs: {$retried}");
+
+        return 0;
+    }
+
+    private function failedJobs(string $id): int
+    {
+        $failed = $this->queueManager()->failed($id !== '' ? $id : null);
+
+        if ($failed === []) {
+            $this->line('No failed jobs.');
+
+            return 0;
+        }
+
+        foreach ($failed as $job) {
+            $this->line(sprintf(
+                '%s queue=%s attempts=%d failed_at=%s %s',
+                is_scalar($job['id'] ?? null) ? (string) $job['id'] : '?',
+                is_string($job['queue'] ?? null) ? $job['queue'] : '?',
+                is_numeric($job['attempts'] ?? null) ? (int) $job['attempts'] : 0,
+                is_numeric($job['failed_at'] ?? null) ? gmdate('c', (int) $job['failed_at']) : '?',
+                is_string($job['exception'] ?? null) ? $job['exception'] : '',
+            ));
+        }
+
+        return 0;
+    }
+
+    private function queueManager(): QueueManager
+    {
+        $queues = $this->kernel->container()->make(QueueManager::class);
+
+        if (!$queues instanceof QueueManager) {
+            throw new \RuntimeException('Queue manager is not registered.');
+        }
+
+        return $queues;
+    }
+
+    private function configInt(Config $config, string $key, int $default): int
+    {
+        $value = $config->get($key, $default);
+
+        return is_numeric($value) ? (int) $value : $default;
     }
 
     /** @return list<ScheduledCommand> */

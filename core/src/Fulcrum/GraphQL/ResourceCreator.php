@@ -35,8 +35,10 @@ class ResourceCreator
         $fieldDefs = $this->fields($fields);
         $files = [
             $graphqlPath . '/' . $model . 'Type.php' => $this->typeStub($model, $fieldDefs),
+            $graphqlPath . '/' . $model . 'Edge.php' => $this->edgeStub($model),
+            $graphqlPath . '/' . $model . 'Connection.php' => $this->connectionStub($model),
             $graphqlPath . '/' . $model . 'Query.php' => $this->queryStub($model, $resource, $resources),
-            $graphqlPath . '/' . $model . 'Mutation.php' => $this->mutationStub($model, $resource, $fieldDefs),
+            $graphqlPath . '/' . $model . 'Mutation.php' => $this->mutationStub($model, $resource, $resources, $fieldDefs),
         ];
 
         foreach ($files as $file => $contents) {
@@ -134,21 +136,75 @@ class {$model}Query
         return {$model}::find((string) \$args['id'])?->toArray();
     }
 
-    #[Query(name: '{$resources}', type: '[{$model}!]!')]
-    #[Arg(name: 'limit', type: 'Int', defaultValue: 25)]
+    #[Query(name: '{$resources}', type: '{$model}Connection!', description: 'List {$resources} using forward cursor pagination.')]
+    #[Arg(name: 'first', type: 'Int', defaultValue: 25)]
+    #[Arg(name: 'after', type: 'String')]
     public function {$resources}(mixed \$root, array \$args): array
     {
         return {$model}::query()
-            ->latest()
-            ->limit(max(1, min((int) (\$args['limit'] ?? 25), 100)))
+            ->cursorPaginate(
+                first: (int) (\$args['first'] ?? 25),
+                after: isset(\$args['after']) ? (string) \$args['after'] : null,
+            )
             ->toArray();
     }
 }
 PHP;
     }
 
+    private function edgeStub(string $model): string
+    {
+        return <<<PHP
+<?php
+
+declare(strict_types=1);
+
+namespace App\\GraphQL;
+
+use Fulcrum\\GraphQL\\Attributes\\Field;
+use Fulcrum\\GraphQL\\Attributes\\ObjectType;
+
+#[ObjectType(name: '{$model}Edge')]
+class {$model}Edge
+{
+    #[Field(type: 'String!')]
+    public string \$cursor;
+
+    #[Field(type: '{$model}!')]
+    public array \$node;
+}
+PHP;
+    }
+
+    private function connectionStub(string $model): string
+    {
+        return <<<PHP
+<?php
+
+declare(strict_types=1);
+
+namespace App\\GraphQL;
+
+use Fulcrum\\GraphQL\\Attributes\\Field;
+use Fulcrum\\GraphQL\\Attributes\\ObjectType;
+
+#[ObjectType(name: '{$model}Connection')]
+class {$model}Connection
+{
+    #[Field(type: '[{$model}!]!')]
+    public array \$nodes;
+
+    #[Field(type: '[{$model}Edge!]!')]
+    public array \$edges;
+
+    #[Field(type: 'PageInfo!')]
+    public array \$pageInfo;
+}
+PHP;
+    }
+
     /** @param list<array{name: string, php: string, graphql: string, validation: string}> $fields */
-    private function mutationStub(string $model, string $resource, array $fields): string
+    private function mutationStub(string $model, string $resource, string $resources, array $fields): string
     {
         $createArgs = '';
         $updateArgs = "    #[Arg(name: 'id', type: 'ID!')]\n";
@@ -175,6 +231,7 @@ PHP;
         $createMethod = 'create' . $model;
         $updateMethod = 'update' . $model;
         $deleteMethod = 'delete' . $model;
+        $manageAbility = $resources . ':manage';
 
         return <<<PHP
 <?php
@@ -184,6 +241,7 @@ declare(strict_types=1);
 namespace App\\GraphQL;
 
 use App\\Models\\{$model};
+use Fulcrum\\Auth\\Attributes\\RequiresAbility;
 use Fulcrum\\GraphQL\\Attributes\\Arg;
 use Fulcrum\\GraphQL\\Attributes\\Mutation;
 use Fulcrum\\Validation\\Validator;
@@ -215,6 +273,7 @@ class {$model}Mutation
     }
 
     #[Mutation(name: '{$updateMethod}', type: '{$model}')]
+    #[RequiresAbility('{$manageAbility}')]
 {$updateArgs}    public function {$updateMethod}(mixed \$root, array \$args): ?array
     {
         \$model = {$model}::find((string) \$args['id']);
@@ -238,6 +297,7 @@ class {$model}Mutation
     }
 
     #[Mutation(name: '{$deleteMethod}', type: 'Boolean!')]
+    #[RequiresAbility('{$manageAbility}')]
     #[Arg(name: 'id', type: 'ID!')]
     public function {$deleteMethod}(mixed \$root, array \$args): bool
     {

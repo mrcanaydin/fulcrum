@@ -8,6 +8,7 @@ use Fulcrum\Queue\Job;
 use Fulcrum\Queue\JobRunner;
 use Fulcrum\Queue\Queue;
 use Fulcrum\Queue\QueuedJob;
+use Throwable;
 
 class SyncQueue implements Queue
 {
@@ -26,4 +27,31 @@ class SyncQueue implements Queue
     public function delete(QueuedJob $job): void {}
 
     public function release(QueuedJob $job, int $delaySeconds = 60): void {}
+
+    public function fail(QueuedJob $job, Throwable $exception): void {}
+
+    public function size(): int
+    {
+        return 0;
+    }
+
+    public function failedCount(): int
+    {
+        return 0;
+    }
+
+    public function failed(?string $id = null): array
+    {
+        return [];
+    }
+
+    public function retryFailed(?string $id = null): int
+    {
+        return 0;
+    }
+
+    public function releaseStale(): int
+    {
+        return 0;
+    }
 }

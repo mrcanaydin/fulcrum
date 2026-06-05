@@ -18,5 +18,8 @@ final class Mutation
         public readonly string $name        = '',
         public readonly string $type        = '',
         public readonly string $description = '',
+        public readonly ?string $deprecationReason = null,
+        public readonly bool $transactional = false,
+        public readonly bool $idempotent = false,
     ) {}
 }

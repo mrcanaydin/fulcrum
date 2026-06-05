@@ -29,5 +29,8 @@ final class FieldDef
         public readonly string $description       = '',
         public readonly bool   $authenticated     = false,
         public readonly array  $requiredAbilities = [],
+        public readonly ?string $deprecationReason = null,
+        public readonly bool $transactional = false,
+        public readonly bool $idempotent = false,
     ) {}
 }

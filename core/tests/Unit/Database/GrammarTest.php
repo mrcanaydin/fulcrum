@@ -12,6 +12,14 @@ use Fulcrum\Support\Collection;
 
 // Mock connection
 class DummyConnection implements ConnectionInterface {
+    private int $transactionLevel = 0;
+
+    public function beginTransaction(): void { $this->transactionLevel++; }
+    public function commit(): void { $this->transactionLevel--; }
+    public function rollBack(): void { $this->transactionLevel--; }
+    public function transactionLevel(): int { return $this->transactionLevel; }
+    public function transaction(callable $callback): mixed { return $callback(); }
+    public function afterCommit(callable $callback): void { $callback(); }
     public function table(string $table): QueryBuilder {
         return new QueryBuilder($this, clone current_grammar());
     }
@@ -103,6 +111,19 @@ test('MongoGrammar compiles advanced wheres', function () {
     
     expect($command['filter']['views'])->toBe(['$gt' => '?'])
         ->and($command['filter']['status'])->toBe(['$in' => ['?', '?']]);
+});
+
+test('grammars compile cursor comparison queries', function () {
+    $sqlBuilder = sql_builder()->table('users')->where('id', '>', 10)->orderBy('id')->limit(26);
+    $mongoBuilder = mongo_builder()->table('users')->where('id', '<', 10)->orderBy('id', 'desc')->limit(26);
+    $mongo = json_decode((new MongoGrammar())->compileSelect($mongoBuilder), true);
+
+    expect((new SqlGrammar())->compileSelect($sqlBuilder))
+        ->toBe('SELECT * FROM users WHERE id > ? ORDER BY id asc LIMIT 26')
+        ->and($sqlBuilder->getBindings())->toBe([10])
+        ->and($mongo['filter']['id'])->toBe(['$lt' => '?'])
+        ->and($mongo['options']['sort']['id'])->toBe(-1)
+        ->and($mongo['options']['limit'])->toBe(26);
 });
 
 test('MongoGrammar compiles insert', function () {

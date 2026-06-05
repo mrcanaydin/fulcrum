@@ -32,13 +32,18 @@ if ! printf '%s' "$preview_response" | grep -q '"mode":"headless"'; then
 fi
 
 for attempt in $(seq 1 60); do
+    live_response="$(docker compose exec -T nginx wget -qO- --timeout=5 http://127.0.0.1/health/live || true)"
+    ready_response="$(docker compose exec -T nginx wget -qO- --timeout=5 http://127.0.0.1/health/ready || true)"
     response="$(docker compose exec -T nginx wget -qO- \
         --header='Content-Type: application/json' \
-        --post-data='{"query":"{ health users(limit: 1) { id name email email_verified_at banned_at } }"}' \
+        --post-data='{"query":"{ users(limit: 1) { id name email email_verified_at banned_at } }"}' \
         --timeout=5 \
         http://127.0.0.1/graphql || true)"
 
-    if printf '%s' "$response" | grep -q '"health":"ok"'; then
+    if printf '%s' "$live_response" | grep -q '"status":"ok"' \
+        && printf '%s' "$ready_response" | grep -q '"status":"ok"' \
+        && printf '%s' "$response" | grep -q '"users"'; then
+        printf '%s\n' "$ready_response"
         printf '%s\n' "$response"
         exit 0
     fi

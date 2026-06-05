@@ -13,6 +13,7 @@ class RequestIdMiddleware implements MiddlewareInterface
     {
         $requestId = $request->header('x-request-id') ?: bin2hex(random_bytes(16));
 
-        return $next($request)->withHeader('X-Request-Id', $requestId);
+        return $next($request->withAttribute('request_id', $requestId))
+            ->withHeader('X-Request-Id', $requestId);
     }
 }

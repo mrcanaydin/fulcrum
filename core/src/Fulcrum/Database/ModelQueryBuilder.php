@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace Fulcrum\Database;
 
+use Fulcrum\Pagination\Cursor;
+use Fulcrum\Pagination\CursorPage;
+use Fulcrum\Pagination\InvalidCursorException;
+
 class ModelQueryBuilder
 {
     /** @var list<string> */
@@ -60,6 +64,56 @@ class ModelQueryBuilder
         $this->builder->offset($offset);
 
         return $this;
+    }
+
+    public function cursorPaginate(
+        int $first = 25,
+        ?string $after = null,
+        ?string $column = null,
+        string $direction = 'asc',
+        int $maxPageSize = 100,
+    ): CursorPage {
+        $model = new $this->modelClass();
+        $column ??= $model->primaryKey();
+        $direction = strtolower($direction) === 'desc' ? 'desc' : 'asc';
+        $first = max(1, min($first, max(1, $maxPageSize)));
+
+        if ($after !== null && $after !== '') {
+            $cursor = Cursor::decode($after);
+
+            if ($cursor['column'] !== $column) {
+                throw new InvalidCursorException('Pagination cursor does not match the requested column.');
+            }
+
+            $this->where($column, $direction === 'asc' ? '>' : '<', $cursor['value']);
+        }
+
+        $this->orderBy($column, $direction)->limit($first + 1);
+        $models = $this->get();
+        $hasNextPage = count($models) > $first;
+        $models = array_slice($models, 0, $first);
+        $nodes = array_map(static fn (Model $item): array => $item->toArray(), $models);
+        $edges = [];
+
+        foreach ($nodes as $node) {
+            if (!array_key_exists($column, $node)) {
+                throw new InvalidCursorException("Cursor column [{$column}] is missing from a paginated result.");
+            }
+
+            $edges[] = [
+                'cursor' => Cursor::encode($column, $node[$column]),
+                'node' => $node,
+            ];
+        }
+
+        return new CursorPage(
+            nodes: $nodes,
+            edges: $edges,
+            hasNextPage: $hasNextPage,
+            hasPreviousPage: $after !== null && $after !== '',
+            startCursor: $edges[0]['cursor'] ?? null,
+            endCursor: $edges === [] ? null : $edges[array_key_last($edges)]['cursor'],
+        );
     }
 
     public function with(string ...$relations): static

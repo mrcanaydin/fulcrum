@@ -33,10 +33,14 @@ class DummyUser
 
 class ProtectedQuery
 {
+    public static int $calls = 0;
+
     #[Query(name: 'adminData', type: 'String!')]
     #[RequiresAbility('admin:read')]
     public function adminData(): string
     {
+        self::$calls++;
+
         return 'Secret Data';
     }
 }
@@ -169,4 +173,53 @@ test('Auth flow: create token, use it, revoke it', function () {
     // Ensure it no longer authenticates
     $shouldBeNull = $authenticator->authenticate($requestWithToken);
     expect($shouldBeNull)->toBeNull();
+});
+
+test('ability requirements reject anonymous and insufficient ability contexts', function () {
+    ProtectedQuery::$calls = 0;
+
+    $container = new Container();
+    $config = new Config(__DIR__ . '/non_existent');
+    $config->set('graphql.types', [ProtectedQuery::class]);
+    $config->set('app.debug', true);
+    $container->instance(Config::class, $config);
+
+    (new GraphQLServiceProvider($container))->register();
+
+    /** @var Executor $executor */
+    $executor = $container->make(Executor::class);
+    $request = new Request('POST', '/graphql', [], []);
+
+    $anonymous = $executor->execute(
+        '{ adminData }',
+        context: new RequestContext($request, $container),
+    );
+
+    expect($anonymous['errors'][0]['message'])->toBe('Unauthenticated.')
+        ->and($anonymous['errors'][0]['extensions']['code'])->toBe('UNAUTHENTICATED')
+        ->and(ProtectedQuery::$calls)->toBe(0);
+
+    $insufficient = $executor->execute(
+        '{ adminData }',
+        context: new RequestContext($request, $container, [
+            'id' => '1',
+            '_token' => ['abilities' => ['users:read']],
+        ]),
+    );
+
+    expect($insufficient['errors'][0]['message'])->toBe('Missing required ability: admin:read')
+        ->and($insufficient['errors'][0]['extensions']['code'])->toBe('FORBIDDEN')
+        ->and(ProtectedQuery::$calls)->toBe(0);
+
+    $allowed = $executor->execute(
+        '{ adminData }',
+        context: new RequestContext($request, $container, [
+            'id' => '1',
+            '_token' => ['abilities' => ['admin:read']],
+        ]),
+    );
+
+    expect($allowed)->not->toHaveKey('errors')
+        ->and($allowed['data']['adminData'])->toBe('Secret Data')
+        ->and(ProtectedQuery::$calls)->toBe(1);
 });

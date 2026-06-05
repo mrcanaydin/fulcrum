@@ -71,14 +71,27 @@ The template ships with a tiny user example built on Fulcrum's model layer:
 
 - `src/Models/User.php` extends `Fulcrum\Database\Model`.
 - `src/GraphQL/UserType.php` defines the `User` GraphQL object type.
-- `src/GraphQL/UserQuery.php` exposes `user(id:)` and `users(limit:)`.
+- `src/GraphQL/UserQuery.php` exposes `user(id:)` and cursor-paginated `users(first:, after:)`.
 - `src/GraphQL/UserMutation.php` exposes `createUser`, email verification, and ban/unban mutations with validation and sanitization.
+
+Cursor pagination query:
+
+```graphql
+query {
+  users(first: 20, after: null) {
+    nodes { id name email }
+    edges { cursor node { id name } }
+    pageInfo { hasNextPage endCursor }
+  }
+}
+```
 
 ```bash
 php fulcrum migrate
 
 curl -X POST http://127.0.0.1:8000/graphql \
   -H 'Content-Type: application/json' \
+  -H 'Idempotency-Key: create-ada-001' \
   -d '{"query":"mutation { createUser(name: \"Ada Lovelace\", email: \"ADA@EXAMPLE.COM\") { id name email } }"}'
 ```
 
@@ -104,12 +117,12 @@ php fulcrum make:model Post
 php fulcrum make:resource Post title:string published:boolean
 ```
 
-`make:resource` generates `src/Models/Post.php`, `src/GraphQL/PostType.php`, `src/GraphQL/PostQuery.php`, and `src/GraphQL/PostMutation.php`. Add the generated GraphQL classes to `config/graphql.php`.
+`make:resource` generates a model, GraphQL type, edge, connection, query, and mutation. Add the generated GraphQL classes to `config/graphql.php`.
 
 Use eager loading when returning nested GraphQL data:
 
 ```php
-User::query()->with('posts')->latest()->limit(20)->toArray();
+User::query()->with('posts')->cursorPaginate(first: 20)->toArray();
 ```
 
 ## API Middleware
@@ -118,9 +131,27 @@ User::query()->with('posts')->latest()->limit(20)->toArray();
 
 Rate limiting uses the configured cache store from `config/cache.php`. Local `.env` defaults to file cache, while Docker uses Redis so rate limits work across PHP-FPM workers and future multi-instance deployments.
 
+## GraphQL Query Safety
+
+`config/graphql.php` bounds query depth, complexity, aliases, operation count, execution duration, and introspection. Production defaults disable introspection and allow one operation per request. Environment variables such as `GRAPHQL_MAX_DEPTH`, `GRAPHQL_MAX_COMPLEXITY`, and `GRAPHQL_INTROSPECTION` can override these settings.
+
+## Reliable Mutations
+
+The example `createUser` mutation is idempotent and transactional. Run migrations to create the included `idempotency_keys` table, then send a unique `Idempotency-Key` header. Retrying the same mutation with the same key and arguments returns its original result without creating another user.
+
+Events and verification jobs from `createUser` use after-commit dispatch, so they are discarded when the user write rolls back.
+
 ## Logging
 
 `config/logging.php` defaults to JSON-line file logs at `storage/logs/fulcrum.log`. The global exception handler reports uncaught exceptions before returning API-safe JSON errors.
+
+GraphQL operation logs include operation name, request ID, duration, complexity, and status. Resolver logs include individual resolver duration and status; `GRAPHQL_SLOW_RESOLVER_MS` controls when slow resolver records become warnings.
+
+## Health Checks
+
+`GET /health/live` is a dependency-free liveness probe. `GET /health/ready` and its `/health` alias perform real database, cache, queue, and storage checks and return HTTP `503` if any enabled dependency fails.
+
+Use `HEALTH_CHECK_DATABASE`, `HEALTH_CHECK_CACHE`, `HEALTH_CHECK_QUEUE`, and `HEALTH_CHECK_STORAGE` to enable or disable individual readiness probes. The smoke script requires both liveness and readiness to pass.
 
 ## Mail
 
@@ -173,7 +204,16 @@ php fulcrum schedule:run
 
 The example `App\Console\FetchApiDataCommand` dispatches `App\Jobs\FetchApiDataJob`. Local `.env` defaults to the `sync` queue driver; Docker uses the `database` driver and the included `jobs` migration.
 
-`php fulcrum queue:work` keeps listening for new jobs. Use `--max-jobs=1` for smoke tests or one-shot processing.
+The database queue includes atomic reservation, stale-job recovery, exponential retry backoff, worker timeouts, and a `failed_jobs` dead-letter table. Configure these through `QUEUE_RETRY_AFTER`, `QUEUE_TRIES`, `QUEUE_TIMEOUT`, `QUEUE_BACKOFF`, and `QUEUE_MAX_BACKOFF`.
+
+```bash
+php fulcrum queue:work
+php fulcrum queue:status
+php fulcrum queue:failed
+php fulcrum queue:retry
+```
+
+`queue:work` keeps listening for new jobs and stops gracefully on `SIGTERM` or `SIGINT`. Use `--max-jobs=1` for smoke tests or one-shot processing.
 
 ## Events
 

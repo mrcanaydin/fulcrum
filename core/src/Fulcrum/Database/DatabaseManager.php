@@ -117,8 +117,23 @@ class DatabaseManager
     /**
      * Start a fluent query builder on the default connection.
      */
-    public function table(string $table): QueryBuilder
+    public function table(string $table, ?string $connection = null): QueryBuilder
     {
-        return $this->connection()->table($table);
+        return $this->connection($connection)->table($table);
+    }
+
+    /**
+     * @template T
+     * @param callable(): T $callback
+     * @return T
+     */
+    public function transaction(callable $callback, ?string $connection = null): mixed
+    {
+        return $this->connection($connection)->transaction($callback);
+    }
+
+    public function afterCommit(callable $callback, ?string $connection = null): void
+    {
+        $this->connection($connection)->afterCommit($callback);
     }
 }

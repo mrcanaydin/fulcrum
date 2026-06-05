@@ -16,6 +16,7 @@ use Fulcrum\Routing\Middleware\MiddlewareInterface;
 use Fulcrum\Routing\Middleware\MiddlewarePipeline;
 use Fulcrum\Routing\Middleware\RateLimitMiddleware;
 use Fulcrum\Routing\Middleware\RequestIdMiddleware;
+use Fulcrum\Observability\HealthChecker;
 
 /**
  * Minimalist router.
@@ -36,6 +37,10 @@ class Router
 
     public function handle(Request $request): Response
     {
+        if ($request->isGet() && in_array($request->path(), ['/health', '/health/live', '/health/ready', '/ready'], true)) {
+            return $this->route($request);
+        }
+
         return $this->pipeline()->handle($request, fn (Request $request): Response => $this->route($request));
     }
 
@@ -48,13 +53,26 @@ class Router
                 'status' => 'ok',
                 'endpoints' => [
                     'graphql' => '/graphql',
-                    'health' => '/health',
+                    'liveness' => '/health/live',
+                    'readiness' => '/health/ready',
                 ],
             ]);
         }
 
-        if ($request->isGet() && $request->path() === '/health') {
+        if ($request->isGet() && $request->path() === '/health/live') {
             return Response::json(['status' => 'ok']);
+        }
+
+        if ($request->isGet() && in_array($request->path(), ['/health', '/health/ready', '/ready'], true)) {
+            $checker = $this->container->make(HealthChecker::class);
+
+            if (!$checker instanceof HealthChecker) {
+                throw new \RuntimeException('Health checker is not registered.');
+            }
+
+            $result = $checker->readiness();
+
+            return Response::json($result->toArray(), $result->healthy ? 200 : 503);
         }
 
         if ($request->path() !== '/graphql') {
