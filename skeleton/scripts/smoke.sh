@@ -17,7 +17,7 @@ else
 fi
 
 mkdir -p storage/app storage/cache storage/logs
-find storage/app storage/cache storage/logs -type d -exec chmod 0777 {} +
+find storage/app storage/cache storage/logs -type d -exec chmod 0777 {} + 2>/dev/null || true
 
 docker compose up -d --build --force-recreate
 docker compose exec -T php php fulcrum migrate
@@ -36,9 +36,15 @@ for attempt in $(seq 1 60); do
     ready_response="$(docker compose exec -T nginx wget -qO- --timeout=5 http://127.0.0.1/health/ready || true)"
     response="$(docker compose exec -T nginx wget -qO- \
         --header='Content-Type: application/json' \
-        --post-data='{"query":"{ users(limit: 1) { id name email email_verified_at banned_at } }"}' \
+        --post-data='{"query":"{ users(first: 1) { nodes { id name email email_verified_at banned_at } } }"}' \
         --timeout=5 \
         http://127.0.0.1/graphql || true)"
+
+    if printf '%s' "$response" | grep -q '"errors"'; then
+        printf '%s\n' "$response"
+        docker compose logs
+        exit 1
+    fi
 
     if printf '%s' "$live_response" | grep -q '"status":"ok"' \
         && printf '%s' "$ready_response" | grep -q '"status":"ok"' \

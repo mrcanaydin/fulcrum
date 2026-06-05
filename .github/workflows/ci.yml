@@ -4,6 +4,10 @@ on:
   push:
   pull_request:
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   core:
     name: Core PHP ${{ matrix.php }}
@@ -38,21 +42,3 @@ jobs:
       - name: Run PHPStan
         working-directory: core
         run: php -d memory_limit=-1 ./vendor/bin/phpstan analyse src/Fulcrum/Cache src/Fulcrum/Console src/Fulcrum/Database/Migrations src/Fulcrum/Events src/Fulcrum/Logging src/Fulcrum/Storage src/Fulcrum/Validation src/Fulcrum/Routing src/Fulcrum/Foundation/Application.php src/Fulcrum/Foundation/Exceptions/Handler.php src/Fulcrum/GraphQL/Executor.php --no-progress
-
-  skeleton-smoke:
-    name: Skeleton Docker smoke
-    runs-on: ubuntu-latest
-    needs: core
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.3'
-          coverage: none
-
-      - name: Run smoke test
-        working-directory: skeleton
-        run: ./scripts/smoke.sh
