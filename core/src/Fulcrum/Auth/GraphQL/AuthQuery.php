@@ -17,9 +17,10 @@ class AuthQuery
      * Actually, if we define the query here, we need to know the type name.
      * The simplest is to assume the skeleton provides a `User` type, so we use `User!`.
      */
+    /** @param array<string, mixed> $args */
     #[Query(name: 'me', type: 'User!', description: 'Returns the currently authenticated user')]
     #[Authenticated]
-    public function me($root, array $args, RequestContext $context): mixed
+    public function me(mixed $root, array $args, RequestContext $context): mixed
     {
         return $context->user();
     }

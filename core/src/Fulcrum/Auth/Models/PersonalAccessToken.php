@@ -17,11 +17,13 @@ class PersonalAccessToken
         protected DatabaseManager $db
     ) {}
 
+    /** @param array<string, mixed> $attributes */
     public function create(array $attributes): string
     {
         return (string) $this->db->table(self::TABLE)->insert($attributes);
     }
 
+    /** @return array<string, mixed>|null */
     public function find(string $id): ?array
     {
         return $this->db->table(self::TABLE)
@@ -40,6 +42,15 @@ class PersonalAccessToken
     {
         return $this->db->table(self::TABLE)
             ->where('id', $id)
+            ->delete();
+    }
+
+    public function deleteForUser(string $id, string $tokenableType, string $tokenableId): int
+    {
+        return $this->db->table(self::TABLE)
+            ->where('id', $id)
+            ->where('tokenable_type', $tokenableType)
+            ->where('tokenable_id', $tokenableId)
             ->delete();
     }
 

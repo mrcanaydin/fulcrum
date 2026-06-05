@@ -7,6 +7,7 @@ namespace Fulcrum\Auth\GraphQL;
 use Fulcrum\GraphQL\Attributes\Mutation;
 use Fulcrum\GraphQL\Attributes\Arg;
 use Fulcrum\GraphQL\Attributes\Authenticated;
+use Fulcrum\GraphQL\Exceptions\ClientException;
 use Fulcrum\GraphQL\RequestContext;
 use Fulcrum\Auth\TokenManager;
 
@@ -16,29 +17,27 @@ class AuthMutation
         protected TokenManager $tokenManager
     ) {}
 
+    /** @param array<string, mixed> $args */
     #[Mutation(name: 'createToken', type: 'TokenPayload!', description: 'Create a new personal access token')]
     #[Arg(name: 'name', type: 'String!')]
     #[Arg(name: 'abilities', type: '[String!]', defaultValue: ['*'])]
     #[Authenticated]
-    public function createToken($root, array $args, RequestContext $context): TokenPayload
+    public function createToken(mixed $root, array $args, RequestContext $context): TokenPayload
     {
-        $user = $context->user();
-        
-        // We assume $user has an 'id' and 'table' or similar. 
-        // For standard implementations, we assume tokenable_type is 'users' and tokenable_id is $user['id'].
-        // A real app might need a more dynamic way to resolve the tokenable type.
-        $tokenableType = $user['_table'] ?? 'users';
-        $tokenableId   = (string) ($user['id'] ?? '');
+        [$tokenableType, $tokenableId] = $this->tokenOwner($context);
+        $name = $args['name'] ?? null;
+        $abilities = $args['abilities'] ?? ['*'];
 
-        if (empty($tokenableId)) {
-            throw new \Exception('Authenticated user has no ID.');
+        if (!is_string($name) || trim($name) === '' || !is_array($abilities)) {
+            throw new ClientException('Token input is invalid.', 'TOKEN_INPUT_INVALID');
         }
+        $abilities = array_values(array_filter($abilities, 'is_string'));
 
         $result = $this->tokenManager->createToken(
             $tokenableType,
             $tokenableId,
-            $args['name'],
-            $args['abilities'] ?? ['*']
+            trim($name),
+            $abilities,
         );
 
         return new TokenPayload(
@@ -48,24 +47,40 @@ class AuthMutation
         );
     }
 
+    /** @param array<string, mixed> $args */
     #[Mutation(name: 'revokeToken', type: 'Boolean!', description: 'Revoke a specific token by its ID')]
     #[Arg(name: 'tokenId', type: 'ID!')]
     #[Authenticated]
-    public function revokeToken($root, array $args, RequestContext $context): bool
+    public function revokeToken(mixed $root, array $args, RequestContext $context): bool
     {
-        // Ideally we should check if the token belongs to the user, but for simplicity here
-        // we just revoke it if they are authenticated. In a real scenario, you'd scope this.
-        return $this->tokenManager->revokeToken($args['tokenId']);
+        [$tokenableType, $tokenableId] = $this->tokenOwner($context);
+        $tokenId = $args['tokenId'] ?? null;
+
+        return is_scalar($tokenId)
+            && $this->tokenManager->revokeTokenForUser((string) $tokenId, $tokenableType, $tokenableId);
     }
 
+    /** @param array<string, mixed> $args */
     #[Mutation(name: 'revokeAllTokens', type: 'Boolean!', description: 'Revoke all tokens for the current user')]
     #[Authenticated]
-    public function revokeAllTokens($root, array $args, RequestContext $context): bool
+    public function revokeAllTokens(mixed $root, array $args, RequestContext $context): bool
     {
-        $user = $context->user();
-        $tokenableType = $user['_table'] ?? 'users';
-        $tokenableId   = (string) ($user['id'] ?? '');
+        [$tokenableType, $tokenableId] = $this->tokenOwner($context);
 
         return $this->tokenManager->revokeAllTokens($tokenableType, $tokenableId);
+    }
+
+    /** @return array{string, string} */
+    private function tokenOwner(RequestContext $context): array
+    {
+        $user = $context->user();
+        $tokenableType = is_array($user) && is_string($user['_table'] ?? null) ? $user['_table'] : 'users';
+        $tokenableId = is_array($user) && is_scalar($user['id'] ?? null) ? (string) $user['id'] : '';
+
+        if ($tokenableId === '') {
+            throw new \RuntimeException('Authenticated user has no ID.');
+        }
+
+        return [$tokenableType, $tokenableId];
     }
 }

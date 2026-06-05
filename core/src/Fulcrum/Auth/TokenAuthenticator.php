@@ -21,6 +21,7 @@ class TokenAuthenticator
     /**
      * Authenticate the request. Returns the authenticated User representation, or null.
      */
+    /** @return array<string, mixed>|null */
     public function authenticate(Request $request): ?array
     {
         $header = $request->header('Authorization');
@@ -45,15 +46,16 @@ class TokenAuthenticator
         }
 
         // Validate hash
-        $expectedHash = $tokenRecord['token'];
+        $expectedHash = $tokenRecord['token'] ?? null;
         $actualHash   = hash('sha256', $plainTextToken);
 
-        if (!hash_equals($expectedHash, $actualHash)) {
+        if (!is_string($expectedHash) || !hash_equals($expectedHash, $actualHash)) {
             return null;
         }
 
         // Check expiration
-        if (!empty($tokenRecord['expires_at']) && strtotime($tokenRecord['expires_at']) < time()) {
+        $expiresAt = $tokenRecord['expires_at'] ?? null;
+        if (is_string($expiresAt) && $expiresAt !== '' && strtotime($expiresAt) < time()) {
             return null;
         }
 
@@ -61,12 +63,26 @@ class TokenAuthenticator
         $this->tokens->touch($tokenId);
 
         // Fetch the user (the 'tokenable')
-        $user = $this->db->table($tokenRecord['tokenable_type'])
-            ->where('id', $tokenRecord['tokenable_id'])
+        $tokenableType = $tokenRecord['tokenable_type'] ?? null;
+        $tokenableId = $tokenRecord['tokenable_id'] ?? null;
+        if (
+            !is_string($tokenableType)
+            || preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $tokenableType) !== 1
+            || !is_scalar($tokenableId)
+        ) {
+            return null;
+        }
+
+        $user = $this->db->table($tokenableType)
+            ->where('id', $tokenableId)
             ->first();
 
         // If user was deleted but token remained
         if (!$user) {
+            return null;
+        }
+
+        if (!empty($user['banned_at'])) {
             return null;
         }
 
@@ -75,8 +91,10 @@ class TokenAuthenticator
         }
 
         // Inject the current token and abilities into the user so we can check it later
+        $encodedAbilities = $tokenRecord['abilities'] ?? null;
+        $abilities = is_string($encodedAbilities) ? json_decode($encodedAbilities, true) : [];
         $user['_token'] = $tokenRecord;
-        $user['_token']['abilities'] = json_decode($tokenRecord['abilities'] ?? '[]', true);
+        $user['_token']['abilities'] = is_array($abilities) ? $abilities : [];
 
         return $user;
     }

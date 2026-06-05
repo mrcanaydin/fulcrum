@@ -91,7 +91,8 @@ test('Auth flow: create token, use it, revoke it', function () {
     $db->connection()->statement("
         CREATE TABLE users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name VARCHAR(255) NOT NULL
+            name VARCHAR(255) NOT NULL,
+            banned_at DATETIME NULL
         )
     ");
 
@@ -135,6 +136,14 @@ test('Auth flow: create token, use it, revoke it', function () {
         ->and($authenticatedUser['id'])->toBe((string)$userId)
         ->and($authenticatedUser['_token']['name'])->toBe('Test Token');
 
+    $tokenId = explode('|', $token)[0];
+    $db->table('personal_access_tokens')->where('id', $tokenId)->update(['expires_at' => '2000-01-01 00:00:00']);
+    expect($authenticator->authenticate($requestWithToken))->toBeNull();
+    $db->table('personal_access_tokens')->where('id', $tokenId)->update(['expires_at' => '2100-01-01 00:00:00']);
+    $db->table('users')->where('id', $userId)->update(['banned_at' => '2026-01-01 00:00:00']);
+    expect($authenticator->authenticate($requestWithToken))->toBeNull();
+    $db->table('users')->where('id', $userId)->update(['banned_at' => null]);
+
     // Use token to query 'me'
     $authenticatedContext = new RequestContext($requestWithToken, $container, $authenticatedUser);
     
@@ -164,7 +173,6 @@ test('Auth flow: create token, use it, revoke it', function () {
     }
     GQL;
 
-    $tokenId = explode('|', $token)[0];
     $resultRevoke = $executor->execute($revokeMutation, ['id' => $tokenId], null, $authenticatedContext);
     
     expect($resultRevoke)->not->toHaveKey('errors')
@@ -222,4 +230,36 @@ test('ability requirements reject anonymous and insufficient ability contexts', 
     expect($allowed)->not->toHaveKey('errors')
         ->and($allowed['data']['adminData'])->toBe('Secret Data')
         ->and(ProtectedQuery::$calls)->toBe(1);
+});
+
+test('authenticated users cannot revoke another users token', function () {
+    $container = new Container();
+    $config = new Config(__DIR__ . '/non_existent');
+    $config->set('database.default', 'sqlite');
+    $config->set('database.connections.sqlite', ['driver' => 'sqlite', 'database' => ':memory:']);
+    $container->instance(Config::class, $config);
+
+    (new DatabaseServiceProvider($container))->register();
+    (new AuthServiceProvider($container))->register();
+
+    $db = $container->make(DatabaseManager::class);
+    $db->connection()->statement('CREATE TABLE personal_access_tokens (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tokenable_type VARCHAR(255),
+        tokenable_id VARCHAR(255),
+        name VARCHAR(255),
+        token VARCHAR(64),
+        abilities TEXT,
+        last_used_at DATETIME NULL,
+        expires_at DATETIME NULL,
+        created_at DATETIME NULL,
+        updated_at DATETIME NULL
+    )');
+
+    $tokens = $container->make(\Fulcrum\Auth\TokenManager::class);
+    $other = $tokens->createToken('users', '2', 'other');
+    $otherId = explode('|', $other['accessToken'])[0];
+
+    expect($tokens->revokeTokenForUser($otherId, 'users', '1'))->toBeFalse()
+        ->and($tokens->revokeTokenForUser($otherId, 'users', '2'))->toBeTrue();
 });

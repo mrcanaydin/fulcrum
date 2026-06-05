@@ -10,6 +10,7 @@ use Fulcrum\GraphQL\Attributes\Field;
 #[ObjectType(name: 'TokenPayload', description: 'The result of a token creation.')]
 class TokenPayload
 {
+    /** @param list<string> $abilities */
     public function __construct(
         #[Field(type: 'String!')]
         public string $accessToken,

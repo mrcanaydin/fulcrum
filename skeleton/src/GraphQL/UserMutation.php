@@ -35,6 +35,7 @@ class UserMutation
     #[Mutation(name: 'createUser', type: 'User!', description: 'Create an example user.')]
     #[Arg(name: 'name', type: 'String!')]
     #[Arg(name: 'email', type: 'String!')]
+    #[Arg(name: 'password', type: 'String')]
     #[Arg(name: 'avatar', type: 'String')]
     #[Arg(name: 'gender', type: 'String')]
     #[Arg(name: 'birthday', type: 'String')]
@@ -45,6 +46,7 @@ class UserMutation
             [
                 'name' => 'required|string|min:2|max:255',
                 'email' => 'required|email|max:255',
+                'password' => 'nullable|string|min:12|max:4096',
                 'avatar' => 'nullable|url|max:2048',
                 'gender' => 'nullable|string|in:male,female,non_binary,other,prefer_not_to_say|max:32',
                 'birthday' => 'nullable|date_format:Y-m-d',
@@ -74,6 +76,9 @@ class UserMutation
                 $user = User::create([
                     'name' => $input['name'],
                     'email' => $input['email'],
+                    'password_hash' => isset($input['password'])
+                        ? password_hash((string) $input['password'], PASSWORD_DEFAULT)
+                        : null,
                     'locale' => $context->locale(),
                     'avatar' => $input['avatar'] ?? null,
                     'gender' => $input['gender'] ?? null,

@@ -10,6 +10,8 @@ return [
         App\GraphQL\UserConnection::class,
         App\GraphQL\UserQuery::class,
         App\GraphQL\UserMutation::class,
+        App\GraphQL\AuthMutation::class,
+        Fulcrum\Auth\GraphQL\TokenPayload::class,
     ],
     'scalars' => [],
     'observability' => [

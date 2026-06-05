@@ -146,3 +146,17 @@ Goal: support real-time events and large-file workflows with production-friendly
 - Document scaling and deployment requirements.
 
 Done when: clients securely subscribe to events and upload files without routing large payloads through GraphQL.
+
+## Sprint 12: Authentication Lifecycle
+
+Status: Complete
+
+Goal: provide a secure credential-to-token lifecycle for API clients.
+
+- Add throttled credential login with generic failures.
+- Issue expiring tokens with server-configured abilities.
+- Revoke only tokens owned by the authenticated user.
+- Reject tokens for banned users and provide current-token logout.
+- Document password and token lifecycle responsibilities.
+
+Done when: clients can securely log in and out without choosing their own privileges or revoking another user's tokens.
