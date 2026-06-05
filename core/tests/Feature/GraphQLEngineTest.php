@@ -24,6 +24,7 @@ use Psr\Log\LoggerInterface;
 use GraphQL\Language\AST\Node;
 use GraphQL\Type\Definition\CustomScalarType;
 use GraphQL\Utils\AST;
+use GraphQL\Utils\SchemaPrinter;
 
 /** @return list<array<string, mixed>> */
 function graphqlLogRecords(string $path): array
@@ -208,6 +209,8 @@ test('GraphQL Engine resolves basic queries', function () {
 
     /** @var Executor $executor */
     $executor = $container->make(Executor::class);
+    $executor->schema()->assertValid();
+    expect(SchemaPrinter::doPrint($executor->schema()))->toContain('type Query');
 
     $context = new RequestContext(new Request('POST', '/graphql', [], []), $container);
 

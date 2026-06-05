@@ -297,6 +297,37 @@ Every completed operation logs its operation name, request ID, duration, complex
 
 Resolver metrics are also logged with resolver class/method, request ID, duration, status, and a slow flag. Configure `graphql.observability.slow_resolver_ms` to elevate slow resolver records to warnings.
 
+## Persisted Queries And Schema Tooling
+
+Fulcrum supports automatic persisted queries using the standard `extensions.persistedQuery` request shape:
+
+```json
+{
+  "query": "query Health { health }",
+  "extensions": {
+    "persistedQuery": {
+      "version": 1,
+      "sha256Hash": "..."
+    }
+  }
+}
+```
+
+The first query-plus-hash request verifies and caches the operation. Later hash-only requests resolve it from cache. Stable error codes include `PERSISTED_QUERY_NOT_FOUND`, `PERSISTED_QUERY_HASH_MISMATCH`, and `PERSISTED_QUERY_NOT_ALLOWED`.
+
+Enable `graphql.persisted_queries.allow_list` to reject operations not deployed in the configured JSON hash-to-query map. In allow-list mode every request must provide an approved persisted-query hash.
+
+The executable schema automatically caches its canonical SDL snapshot and SHA-256 fingerprint. Deployment tooling:
+
+```bash
+php fulcrum schema:validate
+php fulcrum schema:cache
+php fulcrum schema:export storage/schema.graphql
+php fulcrum schema:diff path/to/baseline.graphql
+```
+
+`schema:diff` uses structured GraphQL schema comparison and exits non-zero when breaking changes are found, making it suitable for CI.
+
 ## Health Checks
 
 Fulcrum exposes separate infrastructure probes:

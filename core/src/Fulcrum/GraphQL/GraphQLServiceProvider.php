@@ -11,6 +11,8 @@ use Fulcrum\GraphQL\Scalars\BuiltInScalars;
 use Fulcrum\GraphQL\Pagination\PageInfoType;
 use GraphQL\Type\Definition\ScalarType;
 use Psr\Log\LoggerInterface;
+use Fulcrum\Cache\CacheManager;
+use GraphQL\Utils\SchemaPrinter;
 
 /**
  * Registers the GraphQL engine components into the container.
@@ -37,6 +39,8 @@ class GraphQLServiceProvider extends ServiceProvider
         });
         $this->container->singleton(QuerySafety::class, QuerySafety::class);
         $this->container->singleton(MutationTransaction::class, MutationTransaction::class);
+        $this->container->singleton(PersistedQueryManager::class, PersistedQueryManager::class);
+        $this->container->singleton(SchemaRegistry::class, SchemaRegistry::class);
 
         $this->container->singleton(Executor::class, function ($app) {
             $config = $app->make(Config::class);
@@ -57,12 +61,16 @@ class GraphQLServiceProvider extends ServiceProvider
                 ? $app->make(LoggerInterface::class)
                 : null;
 
-            return new Executor(
+            $executor = new Executor(
                 $schema,
                 $config,
                 $logger instanceof LoggerInterface ? $logger : null,
                 $querySafety instanceof QuerySafety ? $querySafety : null,
             );
+
+            $this->cacheSchemaSnapshot($app, $config, $schema);
+
+            return $executor;
         });
     }
 
@@ -92,5 +100,26 @@ class GraphQLServiceProvider extends ServiceProvider
         }
 
         return $scalars;
+    }
+
+    private function cacheSchemaSnapshot(ContainerInterface $app, Config $config, \GraphQL\Type\Schema $schema): void
+    {
+        if (!(bool) $config->get('graphql.schema_cache.enabled', true) || !$app->bound(CacheManager::class)) {
+            return;
+        }
+
+        $cache = $app->make(CacheManager::class);
+        if (!$cache instanceof CacheManager) {
+            return;
+        }
+
+        $sdl = SchemaPrinter::doPrint($schema);
+        $key = $config->get('graphql.schema_cache.key', 'graphql:schema:snapshot');
+        $ttl = $config->get('graphql.schema_cache.ttl', 86400);
+        $cache->store()->put(
+            is_string($key) && $key !== '' ? $key : 'graphql:schema:snapshot',
+            ['hash' => hash('sha256', $sdl), 'sdl' => $sdl],
+            is_numeric($ttl) ? max(0, (int) $ttl) : 86400,
+        );
     }
 }

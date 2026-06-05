@@ -15,6 +15,17 @@ return [
     'observability' => [
         'slow_resolver_ms' => (float) ($_ENV['GRAPHQL_SLOW_RESOLVER_MS'] ?? 100),
     ],
+    'persisted_queries' => [
+        'enabled' => filter_var($_ENV['GRAPHQL_PERSISTED_QUERIES'] ?? true, FILTER_VALIDATE_BOOL),
+        'allow_list' => filter_var($_ENV['GRAPHQL_ALLOW_LIST'] ?? false, FILTER_VALIDATE_BOOL),
+        'allow_list_path' => $_ENV['GRAPHQL_ALLOW_LIST_PATH'] ?? dirname(__DIR__) . '/graphql-allow-list.json',
+        'ttl' => (int) ($_ENV['GRAPHQL_PERSISTED_QUERY_TTL'] ?? 86400),
+    ],
+    'schema_cache' => [
+        'enabled' => filter_var($_ENV['GRAPHQL_SCHEMA_CACHE'] ?? true, FILTER_VALIDATE_BOOL),
+        'key' => $_ENV['GRAPHQL_SCHEMA_CACHE_KEY'] ?? 'graphql:schema:snapshot',
+        'ttl' => (int) ($_ENV['GRAPHQL_SCHEMA_CACHE_TTL'] ?? 86400),
+    ],
     'security' => [
         'max_depth' => (int) ($_ENV['GRAPHQL_MAX_DEPTH'] ?? 12),
         'max_complexity' => (int) ($_ENV['GRAPHQL_MAX_COMPLEXITY'] ?? 200),

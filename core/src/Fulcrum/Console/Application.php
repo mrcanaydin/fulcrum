@@ -14,6 +14,7 @@ use Fulcrum\Database\Seeders\SeederCreator;
 use Fulcrum\Database\Seeders\SeederRunner;
 use Fulcrum\Foundation\Application as Kernel;
 use Fulcrum\GraphQL\ResourceCreator;
+use Fulcrum\GraphQL\SchemaRegistry;
 use Fulcrum\Queue\QueueWorker;
 use Fulcrum\Queue\QueueManager;
 use Fulcrum\Foundation\Config;
@@ -42,6 +43,10 @@ class Application
                 'queue:status' => $this->queueStatus(),
                 'queue:failed' => $this->failedJobs($argv[2] ?? ''),
                 'queue:retry' => $this->retryFailedJob($argv[2] ?? ''),
+                'schema:validate' => $this->validateSchema(),
+                'schema:cache' => $this->cacheSchema(),
+                'schema:export' => $this->exportSchema($argv[2] ?? ''),
+                'schema:diff' => $this->diffSchema($argv[2] ?? ''),
                 'make:migration' => $this->makeMigration($argv[2] ?? ''),
                 'make:model' => $this->makeModel($argv[2] ?? ''),
                 'make:resource' => $this->makeResource($argv[2] ?? '', array_slice($argv, 3)),
@@ -204,6 +209,10 @@ class Application
         $this->line('  queue:status        Show pending and failed job counts');
         $this->line('  queue:failed [id]   List failed jobs');
         $this->line('  queue:retry [id]    Retry one or all failed jobs');
+        $this->line('  schema:validate     Validate the executable GraphQL schema');
+        $this->line('  schema:cache        Cache the canonical schema snapshot');
+        $this->line('  schema:export [path] Export canonical GraphQL SDL');
+        $this->line('  schema:diff path    Fail on breaking changes from baseline SDL');
         $this->line('  make:migration name Create a new migration file');
         $this->line('  make:model name     Create a new model class');
         $this->line('  make:resource name fields... Create model and GraphQL CRUD classes');
@@ -338,6 +347,65 @@ class Application
         $value = $config->get($key, $default);
 
         return is_numeric($value) ? (int) $value : $default;
+    }
+
+    private function validateSchema(): int
+    {
+        $this->schemaRegistry()->validate();
+        $this->line('GraphQL schema is valid.');
+
+        return 0;
+    }
+
+    private function cacheSchema(): int
+    {
+        $snapshot = $this->schemaRegistry()->cacheSnapshot();
+        $this->line("Cached GraphQL schema: {$snapshot['hash']}");
+
+        return 0;
+    }
+
+    private function exportSchema(string $path): int
+    {
+        $path = $path !== '' ? $path : $this->kernel->basePath('storage/schema.graphql');
+        $hash = $this->schemaRegistry()->export($path);
+        $this->line("Exported GraphQL schema: {$path}");
+        $this->line("Schema hash: {$hash}");
+
+        return 0;
+    }
+
+    private function diffSchema(string $baseline): int
+    {
+        if ($baseline === '') {
+            fwrite(STDERR, 'Schema baseline path is required.' . PHP_EOL);
+
+            return 1;
+        }
+
+        $changes = $this->schemaRegistry()->breakingChanges($baseline);
+        if ($changes === []) {
+            $this->line('No breaking GraphQL schema changes found.');
+
+            return 0;
+        }
+
+        foreach ($changes as $change) {
+            $this->line("{$change['type']}: {$change['description']}");
+        }
+
+        return 1;
+    }
+
+    private function schemaRegistry(): SchemaRegistry
+    {
+        $registry = $this->kernel->container()->make(SchemaRegistry::class);
+
+        if (!$registry instanceof SchemaRegistry) {
+            throw new \RuntimeException('GraphQL schema registry is not registered.');
+        }
+
+        return $registry;
     }
 
     /** @return list<ScheduledCommand> */

@@ -109,6 +109,8 @@ Done when: operators can identify slow operations and unhealthy dependencies.
 
 ## Sprint 9: Persisted Queries And Schema Tooling
 
+Status: Complete
+
 Goal: improve performance, deployment safety, and client integration.
 
 - Add automatic persisted queries and allow-list mode.

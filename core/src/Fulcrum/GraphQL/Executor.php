@@ -133,6 +133,11 @@ class Executor
         }
     }
 
+    public function schema(): Schema
+    {
+        return $this->schema;
+    }
+
     /**
      * @param array<string, mixed> $result
      * @return array<string, mixed>

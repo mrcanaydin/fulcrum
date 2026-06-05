@@ -135,6 +135,18 @@ Rate limiting uses the configured cache store from `config/cache.php`. Local `.e
 
 `config/graphql.php` bounds query depth, complexity, aliases, operation count, execution duration, and introspection. Production defaults disable introspection and allow one operation per request. Environment variables such as `GRAPHQL_MAX_DEPTH`, `GRAPHQL_MAX_COMPLEXITY`, and `GRAPHQL_INTROSPECTION` can override these settings.
 
+## Persisted Queries And Schema CI
+
+Automatic persisted queries are enabled by default. Clients send `extensions.persistedQuery.version = 1` and the query SHA-256 hash; after registration they may omit the full query. Enable `GRAPHQL_ALLOW_LIST=true` in production to accept only operations deployed in `graphql-allow-list.json`.
+
+```bash
+php fulcrum schema:validate
+php fulcrum schema:export storage/schema.graphql
+php fulcrum schema:diff baseline/schema.graphql
+```
+
+`schema:diff` exits with failure when it detects breaking changes. Canonical schema SDL and its fingerprint are cached automatically through the configured cache store.
+
 ## Reliable Mutations
 
 The example `createUser` mutation is idempotent and transactional. Run migrations to create the included `idempotency_keys` table, then send a unique `Idempotency-Key` header. Retrying the same mutation with the same key and arguments returns its original result without creating another user.

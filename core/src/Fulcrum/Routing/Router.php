@@ -9,6 +9,8 @@ use Fulcrum\Auth\TokenAuthenticator;
 use Fulcrum\Foundation\Config;
 use Fulcrum\GraphQL\Executor;
 use Fulcrum\GraphQL\RequestContext;
+use Fulcrum\GraphQL\PersistedQueryManager;
+use Fulcrum\GraphQL\Exceptions\ClientException;
 use Fulcrum\Routing\Middleware\BodySizeLimitMiddleware;
 use Fulcrum\Routing\Middleware\CorsMiddleware;
 use Fulcrum\Routing\Middleware\JsonContentTypeMiddleware;
@@ -103,14 +105,31 @@ class Router
 
         $variables = $request->graphqlVariables();
 
+        try {
+            $query = $this->persistedQueries()->resolve($request->graphqlQuery(), $request->graphqlExtensions());
+        } catch (ClientException $exception) {
+            return Response::graphql(['errors' => [$exception->toGraphQLError()]]);
+        }
+
         $result = $executor->execute(
-            $request->graphqlQuery(),
+            $query,
             $variables === [] ? null : $variables,
             $request->graphqlOperationName(),
             $context
         );
 
         return Response::graphql($result);
+    }
+
+    private function persistedQueries(): PersistedQueryManager
+    {
+        $manager = $this->container->make(PersistedQueryManager::class);
+
+        if (!$manager instanceof PersistedQueryManager) {
+            throw new \RuntimeException('Persisted query manager is not registered.');
+        }
+
+        return $manager;
     }
 
     private function pipeline(): MiddlewarePipeline

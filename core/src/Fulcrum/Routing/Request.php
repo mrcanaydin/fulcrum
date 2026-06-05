@@ -186,6 +186,14 @@ final class Request
         return is_string($op) ? $op : null;
     }
 
+    /** @return array<string, mixed> */
+    public function graphqlExtensions(): array
+    {
+        $extensions = $this->body['extensions'] ?? [];
+
+        return is_array($extensions) ? $extensions : [];
+    }
+
     // ─── Parsing ─────────────────────────────────────────────────────────────
 
     /** @return array<string, string> */

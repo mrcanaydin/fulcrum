@@ -42,6 +42,8 @@ class SchemaCompiler
     {
         $queryFields    = [];
         $mutationFields = [];
+        $this->typeCache = [];
+        $this->namedDefs = [];
         $this->scalarTypes = $scalarTypes;
 
         // 1. First pass: Register named definitions
@@ -67,6 +69,7 @@ class SchemaCompiler
                 'name'   => 'Query',
                 'fields' => $queryFields,
             ]);
+            $this->typeCache['Query'] = $queryType;
         }
 
         // 3. Build root Mutation type
@@ -76,6 +79,7 @@ class SchemaCompiler
                 'name'   => 'Mutation',
                 'fields' => $mutationFields,
             ]);
+            $this->typeCache['Mutation'] = $mutationType;
         }
 
         // 4. Return the Schema
@@ -238,7 +242,7 @@ class SchemaCompiler
         };
     }
 
-    private function loadType(string $name): Type
+    private function loadType(string $name): ?Type
     {
         if (isset($this->typeCache[$name])) {
             return $this->typeCache[$name];
@@ -269,7 +273,7 @@ class SchemaCompiler
             return $this->typeCache[$name];
         }
 
-        throw new \Exception("Unknown GraphQL type: {$name}");
+        return null;
     }
 
     /**
