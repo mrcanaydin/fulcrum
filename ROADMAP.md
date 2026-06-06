@@ -174,3 +174,73 @@ Goal: support application-defined user groups and permissions without hard-codin
 - Document application-owned permission and management policies.
 
 Done when: applications can define groups such as admin and editor and protect existing GraphQL fields with their permissions.
+
+## Sprint 14: Production Readiness Baseline
+
+Status: Complete
+
+Goal: define and enforce the minimum quality gates for running Fulcrum-backed APIs in production-like environments.
+
+- Add CI integration tests against real PostgreSQL, MySQL, and Redis services.
+- Run the skeleton smoke test in CI with Docker Compose.
+- Add a production readiness checklist to the core and skeleton docs.
+- Document supported infrastructure responsibilities such as connection pooling, TLS termination, process supervision, backups, and secret management.
+- Add a release checklist covering migrations, schema export, static analysis, tests, and smoke tests.
+
+Done when: every release can prove the framework boots, migrates, serves health checks, and executes core workflows against real service dependencies.
+
+## Sprint 15: Database Portability And Migration Hardening
+
+Status: In Progress
+
+Goal: make database behavior predictable across PostgreSQL and MySQL without relying on accidental SQL compatibility.
+
+- Add migration integration tests for the skeleton schema on PostgreSQL and MySQL.
+- Add database-specific helpers or a small schema builder for common migration operations.
+- Audit existing migrations for non-portable SQL and rollback behavior.
+- Document supported SQL types, indexes, timestamps, auto-increment identities, and portability limits.
+- Add tests for PostgreSQL and MySQL insert IDs, transactions, locks, and queue reservation semantics.
+
+Done when: supported relational databases pass the same migration, rollback, queue, and model behavior tests.
+
+## Sprint 16: Security Review And Hardening
+
+Status: Planned
+
+Goal: reduce the risk of unsafe defaults or framework-level security regressions.
+
+- Review authentication, token storage, ability checks, rate limiting, CORS, uploads, and validation defaults.
+- Add regression tests for common authorization bypass and input validation failure modes.
+- Document production-safe environment defaults and dangerous debug settings.
+- Add guidance for password hashing, token TTLs, trusted proxies, HTTPS-only deployments, and secret rotation.
+- Verify GraphQL error masking, request IDs, and audit-relevant logs under production config.
+
+Done when: a production-configured skeleton fails closed for auth, validation, error exposure, proxy trust, and upload safety.
+
+## Sprint 17: Operations And Deployment Guides
+
+Status: Planned
+
+Goal: make Fulcrum applications straightforward to run, observe, and recover in production.
+
+- Add deployment guides for Docker Compose, container platforms, and traditional PHP-FPM/Nginx setups.
+- Document queue worker supervision with systemd, Supervisor, or container restart policies.
+- Document readiness/liveness probes, log destinations, schema cache warming, and migration ordering.
+- Add backup and restore guidance for database-backed queues, tokens, idempotency keys, and subscription events.
+- Add notes for PgBouncer compatibility without making pooling a framework responsibility.
+
+Done when: operators can deploy the skeleton with clear steps for web, worker, cache, database, logs, health checks, and rollback.
+
+## Sprint 18: Production Dogfood App
+
+Status: Planned
+
+Goal: validate the framework through a small but real API built on top of Fulcrum.
+
+- Build a minimal production-shaped app using auth, roles, GraphQL mutations, queues, mail/log notifications, uploads, health checks, and persisted queries.
+- Run it against PostgreSQL and Redis with production-like config.
+- Add load and concurrency checks for login, token-authenticated GraphQL, queue workers, and idempotent mutations.
+- Capture framework pain points as issues and fix blockers before declaring beta.
+- Publish a short production-readiness report from the dogfood run.
+
+Done when: a real Fulcrum app can run through deploy, migrate, smoke, load, recover, and rollback exercises without manual framework fixes.

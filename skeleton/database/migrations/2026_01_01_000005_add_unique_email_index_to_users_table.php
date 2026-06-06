@@ -19,9 +19,12 @@ return new class implements Migration {
     public function down(ConnectionInterface $db): void
     {
         if ($this->hasIndex($db, 'users_email_unique')) {
-            $db->statement($db instanceof PostgresDriver
-                ? 'ALTER TABLE users DROP CONSTRAINT users_email_unique'
-                : 'ALTER TABLE users DROP INDEX users_email_unique');
+            if ($db instanceof PostgresDriver) {
+                $this->dropPostgresUniqueEmail($db);
+                return;
+            }
+
+            $db->statement('ALTER TABLE users DROP INDEX users_email_unique');
         }
     }
 
@@ -38,5 +41,14 @@ return new class implements Migration {
             'SELECT INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ?',
             ['users', $index]
         )->first() !== null;
+    }
+
+    private function dropPostgresUniqueEmail(ConnectionInterface $db): void
+    {
+        try {
+            $db->statement('ALTER TABLE users DROP CONSTRAINT users_email_unique');
+        } catch (\PDOException) {
+            $db->statement('DROP INDEX IF EXISTS users_email_unique');
+        }
     }
 };

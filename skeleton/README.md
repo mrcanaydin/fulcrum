@@ -35,6 +35,8 @@ Expected response:
 
 The Docker stack runs Nginx, PHP-FPM, Redis, and PostgreSQL. Nginx listens on `http://127.0.0.1:8080`.
 
+The smoke script is the reference production-readiness check for this template: it builds the containers, runs migrations, seeds demo data, executes one queued job, verifies liveness and readiness, and sends a GraphQL query through Nginx.
+
 ## Structure
 
 - `public/index.php` boots the Fulcrum application.
@@ -256,6 +258,22 @@ GraphQL operation logs include operation name, request ID, duration, complexity,
 `GET /health/live` is a dependency-free liveness probe. `GET /health/ready` and its `/health` alias perform real database, cache, queue, and storage checks and return HTTP `503` if any enabled dependency fails.
 
 Use `HEALTH_CHECK_DATABASE`, `HEALTH_CHECK_CACHE`, `HEALTH_CHECK_QUEUE`, and `HEALTH_CHECK_STORAGE` to enable or disable individual readiness probes. The smoke script requires both liveness and readiness to pass.
+
+## Production Checklist
+
+Before adapting the skeleton for production, verify the deployment rather than only the PHP code:
+
+- Set `APP_ENV=production` and `APP_DEBUG=false`.
+- Store database, Redis, SMTP, webhook, object-storage, and token secrets outside git.
+- Run `php fulcrum migrate:status` before deploy and `php fulcrum migrate` once during deploy.
+- Use PostgreSQL or MySQL with backups, restore drills, and appropriate connection limits.
+- Use a shared Redis cache for rate limiting, persisted queries, and multi-instance behavior.
+- Run queue workers as supervised processes separate from PHP-FPM web workers.
+- Configure `GET /health/live` as liveness and `GET /health/ready` as readiness.
+- Ship JSON-line logs from `storage/logs` or configure another production log channel.
+- Review `CORS_ALLOWED_ORIGINS`, `TRUSTED_PROXIES`, `API_MAX_BODY_BYTES`, `RATE_LIMIT_*`, and `AUTH_*`.
+- Enable persisted-query allow-list mode for public APIs when clients can deploy an allow-list.
+- If using PgBouncer, prefer transaction pooling and avoid session-scoped PostgreSQL features in application code.
 
 ## Mail
 
