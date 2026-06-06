@@ -86,6 +86,7 @@ final class SchemaSupportTestConnection implements ConnectionInterface
             ['INDEX_NAME' => is_string($bindings[1] ?? null) ? $bindings[1] : 'test_index'],
         ];
     }
+
 }
 
 it('provides portable schema type fragments for mysql style connections', function () {
@@ -106,6 +107,11 @@ it('provides portable schema type fragments for postgres connections', function 
         ->and(SchemaSupport::bigInteger($db))->toBe('BIGINT')
         ->and(SchemaSupport::integer($db))->toBe('INTEGER')
         ->and(SchemaSupport::unsignedInteger($db))->toBe('INTEGER');
+});
+
+it('provides portable long text fragments', function () {
+    expect(SchemaSupport::longText(new SchemaSupportTestConnection()))->toBe('LONGTEXT')
+        ->and(SchemaSupport::longText(new PostgresDriver(new PDO('sqlite::memory:'))))->toBe('TEXT');
 });
 
 it('creates mysql style indexes only when missing', function () {

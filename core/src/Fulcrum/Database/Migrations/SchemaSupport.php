@@ -41,6 +41,11 @@ final class SchemaSupport
         return 'TIMESTAMP NULL DEFAULT NULL';
     }
 
+    public static function longText(ConnectionInterface $db): string
+    {
+        return self::isPostgres($db) ? 'TEXT' : 'LONGTEXT';
+    }
+
     /**
      * @param list<string> $columns
      */
@@ -77,4 +82,5 @@ final class SchemaSupport
             [$table, $name]
         )->first() !== null;
     }
+
 }
