@@ -26,12 +26,24 @@ class SignedUploadManager
             throw new ClientException('Upload path is invalid.', 'SIGNED_UPLOAD_PATH_INVALID');
         }
 
+        $contentType = strtolower(trim($contentType));
+        if ($contentType === '' || !preg_match('/^[a-z0-9][a-z0-9.+-]*\/[a-z0-9][a-z0-9.+-]*$/', $contentType)) {
+            throw new ClientException('Upload content type is invalid.', 'SIGNED_UPLOAD_CONTENT_TYPE_INVALID');
+        }
+
+        $allowedContentTypes = $this->stringList($this->config->get('storage.signed_uploads.allowed_content_types', []));
+        if ($allowedContentTypes !== [] && !in_array($contentType, $allowedContentTypes, true)) {
+            throw new ClientException('Upload content type is not allowed.', 'SIGNED_UPLOAD_CONTENT_TYPE_NOT_ALLOWED');
+        }
+
         $bucket = $settings['bucket'] ?? null;
         if (!is_string($bucket) || $bucket === '') {
             throw new ClientException('Signed upload storage is not configured.', 'SIGNED_UPLOAD_NOT_CONFIGURED');
         }
 
-        $expiresIn = max(60, min($expiresIn, 3600));
+        $minTtl = $this->int('storage.signed_uploads.min_ttl_seconds', 60);
+        $maxTtl = max($minTtl, $this->int('storage.signed_uploads.max_ttl_seconds', 3600));
+        $expiresIn = max($minTtl, min($expiresIn, $maxTtl));
         $prefix = is_string($settings['prefix'] ?? null) ? trim($settings['prefix'], '/') : '';
         $key = $prefix !== '' ? $prefix . '/' . $path : $path;
         $client = new S3Client($this->clientConfig($settings));
@@ -79,5 +91,27 @@ class SignedUploadManager
         $value = $this->config->get($key, $default);
 
         return is_string($value) && $value !== '' ? $value : $default;
+    }
+
+    private function int(string $key, int $default): int
+    {
+        $value = $this->config->get($key, $default);
+
+        return is_int($value) || is_string($value) || is_float($value)
+            ? max(1, (int) $value)
+            : $default;
+    }
+
+    /** @return list<string> */
+    private function stringList(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            array_map(static fn (mixed $item): string => is_string($item) ? strtolower(trim($item)) : '', $value),
+            static fn (string $item): bool => $item !== ''
+        ));
     }
 }

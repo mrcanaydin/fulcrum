@@ -205,7 +205,7 @@ Done when: supported relational databases pass the same migration, rollback, que
 
 ## Sprint 16: Security Review And Hardening
 
-Status: Planned
+Status: In Progress
 
 Goal: reduce the risk of unsafe defaults or framework-level security regressions.
 

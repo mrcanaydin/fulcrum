@@ -201,6 +201,8 @@ mutation {
 
 The client uploads the file bytes directly to the returned `url` using the returned method and headers. GraphQL only issues short-lived upload instructions and never receives the file body.
 
+Signed uploads are restricted by `SIGNED_UPLOAD_ALLOWED_CONTENT_TYPES` and TTL bounds from `SIGNED_UPLOAD_MIN_TTL_SECONDS`/`SIGNED_UPLOAD_MAX_TTL_SECONDS`. Keep this list narrow for public APIs, especially when uploaded objects are served from a browser-accessible domain.
+
 ## Authentication
 
 The skeleton includes a basic credential-to-token flow suitable for API clients. A password is required when creating a user, then valid credentials may be exchanged through `login`. Login failures are generic and throttled, token abilities are server-configured, and issued tokens expire.
@@ -272,6 +274,7 @@ Before adapting the skeleton for production, verify the deployment rather than o
 - Configure `GET /health/live` as liveness and `GET /health/ready` as readiness.
 - Ship JSON-line logs from `storage/logs` or configure another production log channel.
 - Review `CORS_ALLOWED_ORIGINS`, `TRUSTED_PROXIES`, `API_MAX_BODY_BYTES`, `RATE_LIMIT_*`, and `AUTH_*`.
+- In production, set exact `CORS_ALLOWED_ORIGINS`; leaving it unset emits no CORS allow-origin headers.
 - Enable persisted-query allow-list mode for public APIs when clients can deploy an allow-list.
 - If using PgBouncer, prefer transaction pooling and avoid session-scoped PostgreSQL features in application code.
 

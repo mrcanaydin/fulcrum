@@ -35,6 +35,38 @@ it('adds cors headers and handles preflight requests', function () {
         ->and($response->getHeaders()['Access-Control-Allow-Origin'])->toBe('https://app.example');
 });
 
+it('rejects disallowed cors preflights and omits cors headers on disallowed origins', function () {
+    $config = middlewareConfig();
+    $config->set('api.cors.allowed_origins', ['https://app.example']);
+    $middleware = new CorsMiddleware($config);
+
+    $preflight = $middleware->handle(
+        new Request('OPTIONS', '/graphql', ['HTTP_ORIGIN' => 'https://evil.example'], []),
+        fn () => Response::json(['ok' => true])
+    );
+    $actual = $middleware->handle(
+        new Request('POST', '/graphql', ['HTTP_ORIGIN' => 'https://evil.example'], []),
+        fn () => Response::json(['ok' => true])
+    );
+
+    expect($preflight->getStatusCode())->toBe(403)
+        ->and($preflight->getHeaders())->not->toHaveKey('Access-Control-Allow-Origin')
+        ->and($actual->getStatusCode())->toBe(200)
+        ->and($actual->getHeaders())->not->toHaveKey('Access-Control-Allow-Origin');
+});
+
+it('does not emit cors headers when no origins are allowed', function () {
+    $config = middlewareConfig();
+    $config->set('api.cors.allowed_origins', []);
+
+    $response = (new CorsMiddleware($config))->handle(
+        new Request('POST', '/graphql', ['HTTP_ORIGIN' => 'https://app.example'], []),
+        fn () => Response::json(['ok' => true])
+    );
+
+    expect($response->getHeaders())->not->toHaveKey('Access-Control-Allow-Origin');
+});
+
 it('rejects oversized request bodies', function () {
     $config = middlewareConfig();
     $config->set('api.max_body_bytes', 10);

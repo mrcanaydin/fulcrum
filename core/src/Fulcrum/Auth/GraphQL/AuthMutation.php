@@ -32,6 +32,7 @@ class AuthMutation
             throw new ClientException('Token input is invalid.', 'TOKEN_INPUT_INVALID');
         }
         $abilities = array_values(array_filter($abilities, 'is_string'));
+        $this->ensureAbilitiesCanBeDelegated($abilities, $context);
 
         $result = $this->tokenManager->createToken(
             $tokenableType,
@@ -82,5 +83,27 @@ class AuthMutation
         }
 
         return [$tokenableType, $tokenableId];
+    }
+
+    /**
+     * @param list<string> $abilities
+     */
+    private function ensureAbilitiesCanBeDelegated(array $abilities, RequestContext $context): void
+    {
+        $user = $context->user();
+        $token = is_array($user) && is_array($user['_token'] ?? null) ? $user['_token'] : [];
+        $currentAbilities = is_array($token['abilities'] ?? null)
+            ? array_values(array_filter($token['abilities'], 'is_string'))
+            : [];
+
+        if (in_array('*', $currentAbilities, true)) {
+            return;
+        }
+
+        foreach ($abilities as $ability) {
+            if ($ability === '*' || !in_array($ability, $currentAbilities, true)) {
+                throw new ClientException('Token abilities cannot exceed the current token.', 'TOKEN_ABILITIES_FORBIDDEN');
+            }
+        }
     }
 }

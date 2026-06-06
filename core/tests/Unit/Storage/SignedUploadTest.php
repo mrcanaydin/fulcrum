@@ -18,6 +18,7 @@ it('creates direct S3 signed upload instructions', function () {
         'endpoint' => 'https://storage.example.com',
         'use_path_style_endpoint' => true,
     ]);
+    $config->set('storage.signed_uploads.allowed_content_types', ['image/png']);
 
     $upload = (new SignedUploadManager($config))->create('users/1/avatar.png', 'image/png', 300);
 
@@ -38,4 +39,37 @@ it('rejects unsupported signed upload disks and unsafe paths', function () {
     $config->set('storage.disks.s3', ['driver' => 's3', 'bucket' => 'uploads']);
     expect(fn () => (new SignedUploadManager($config))->create('../secret', 'text/plain'))
         ->toThrow(ClientException::class);
+});
+
+it('rejects disallowed signed upload content types', function () {
+    $config = new Config(__DIR__ . '/missing');
+    $config->set('storage.default', 's3');
+    $config->set('storage.disks.s3', ['driver' => 's3', 'bucket' => 'uploads']);
+    $config->set('storage.signed_uploads.allowed_content_types', ['image/png']);
+
+    expect(fn () => (new SignedUploadManager($config))->create('users/1/avatar.svg', 'image/svg+xml'))
+        ->toThrow(ClientException::class, 'Upload content type is not allowed.');
+});
+
+it('rejects invalid signed upload content types and clamps ttl bounds', function () {
+    $config = new Config(__DIR__ . '/missing');
+    $config->set('storage.default', 's3');
+    $config->set('storage.disks.s3', [
+        'driver' => 's3',
+        'key' => 'test-key',
+        'secret' => 'test-secret',
+        'region' => 'us-east-1',
+        'bucket' => 'uploads',
+        'endpoint' => 'https://storage.example.com',
+        'use_path_style_endpoint' => true,
+    ]);
+    $config->set('storage.signed_uploads.max_ttl_seconds', 120);
+
+    expect(fn () => (new SignedUploadManager($config))->create('users/1/avatar.png', 'not a mime'))
+        ->toThrow(ClientException::class, 'Upload content type is invalid.');
+
+    $upload = (new SignedUploadManager($config))->create('users/1/avatar.png', 'IMAGE/PNG', 600);
+
+    expect($upload->headers['Content-Type'])->toBe('image/png')
+        ->and($upload->expiresAt)->toBeLessThanOrEqual(time() + 120);
 });

@@ -541,6 +541,10 @@ Application deployment checklist:
 
 Connection pooling such as PgBouncer is a deployment optimization rather than framework functionality. Fulcrum should remain compatible with transaction pooling, but applications decide whether to run it based on workload and infrastructure.
 
+Production CORS should list exact origins. Fulcrum omits CORS headers for disallowed origins and rejects disallowed preflight requests instead of falling back to another configured origin.
+
+Personal access tokens cannot delegate abilities beyond the current token. Signed uploads should use a narrow content-type allow-list and short TTLs, especially for browser-accessible object storage.
+
 ## Database Portability
 
 Fulcrum supports PostgreSQL and MySQL as first-class relational databases. Framework migrations should avoid relying on SQL that only happens to work on one engine.

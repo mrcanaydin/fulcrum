@@ -45,6 +45,29 @@ class ProtectedQuery
     }
 }
 
+function authMutationTestContainer(): Container
+{
+    $container = new Container();
+    $config = new Config(__DIR__ . '/non_existent');
+    $config->set('database.default', 'sqlite');
+    $config->set('database.connections.sqlite', [
+        'driver' => 'sqlite',
+        'database' => ':memory:',
+    ]);
+    $config->set('graphql.types', [
+        DummyUser::class,
+        \Fulcrum\Auth\GraphQL\TokenPayload::class,
+        AuthMutation::class,
+    ]);
+    $container->instance(Config::class, $config);
+
+    (new DatabaseServiceProvider($container))->register();
+    (new AuthServiceProvider($container))->register();
+    (new GraphQLServiceProvider($container))->register();
+
+    return $container;
+}
+
 test('Auth flow: create token, use it, revoke it', function () {
     $container = new Container();
 
@@ -106,7 +129,7 @@ test('Auth flow: create token, use it, revoke it', function () {
     $createTokenContext = new RequestContext(
         new Request('POST', '/graphql', [], []),
         $container,
-        ['id' => $userId, '_table' => 'users']
+        ['id' => $userId, '_table' => 'users', '_token' => ['abilities' => ['*']]]
     );
 
     $createMutation = <<<'GQL'
@@ -262,4 +285,26 @@ test('authenticated users cannot revoke another users token', function () {
 
     expect($tokens->revokeTokenForUser($otherId, 'users', '1'))->toBeFalse()
         ->and($tokens->revokeTokenForUser($otherId, 'users', '2'))->toBeTrue();
+});
+
+test('authenticated users cannot create tokens with abilities they do not already have', function () {
+    $container = authMutationTestContainer();
+
+    /** @var Executor $executor */
+    $executor = $container->make(Executor::class);
+    $context = new RequestContext(
+        new Request('POST', '/graphql', [], []),
+        $container,
+        ['id' => '1', '_table' => 'users', '_token' => ['abilities' => ['users:read']]]
+    );
+
+    $result = $executor->execute(<<<'GQL'
+    mutation {
+        createToken(name: "admin", abilities: ["admin:read"]) {
+            accessToken
+        }
+    }
+    GQL, null, null, $context);
+
+    expect($result['errors'][0]['extensions']['code'])->toBe('TOKEN_ABILITIES_FORBIDDEN');
 });
