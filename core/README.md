@@ -414,8 +414,6 @@ public function chargeOrder(mixed $root, array $args): array
 
 Idempotent mutations require an `Idempotency-Key` request header and an `idempotency_keys` table. Repeating the same key and arguments replays the stored resolver result; reusing a key with different arguments returns `IDEMPOTENCY_KEY_REUSED`.
 
-The current MongoDB driver does not support transactions. Calling its transaction APIs throws an explicit runtime exception.
-
 ## Commands, Scheduling & Queues
 
 Applications can register Laravel-style console commands in `config/console.php`:

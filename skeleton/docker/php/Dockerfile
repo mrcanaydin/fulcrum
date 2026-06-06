@@ -1,9 +1,7 @@
 FROM php:8.3-fpm-alpine
 
-RUN apk add --no-cache git unzip icu-dev linux-headers $PHPIZE_DEPS \
-    && docker-php-ext-install intl pdo pdo_mysql \
-    && pecl install mongodb \
-    && docker-php-ext-enable mongodb
+RUN apk add --no-cache git unzip icu-dev libpq-dev linux-headers $PHPIZE_DEPS \
+    && docker-php-ext-install intl pdo pdo_mysql pdo_pgsql
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 

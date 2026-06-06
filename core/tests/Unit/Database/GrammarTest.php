@@ -6,7 +6,6 @@ namespace Fulcrum\Tests\Unit\Database;
 
 use Fulcrum\Database\QueryBuilder;
 use Fulcrum\Database\Grammar\SqlGrammar;
-use Fulcrum\Database\Grammar\MongoGrammar;
 use Fulcrum\Database\ConnectionInterface;
 use Fulcrum\Support\Collection;
 
@@ -32,10 +31,6 @@ class DummyConnection implements ConnectionInterface {
 
 function sql_builder() {
     return new QueryBuilder(new DummyConnection(), new SqlGrammar());
-}
-
-function mongo_builder() {
-    return new QueryBuilder(new DummyConnection(), new MongoGrammar());
 }
 
 // ─── SQL Grammar Tests ───────────────────────────────────────────────────────
@@ -87,72 +82,10 @@ test('SqlGrammar compiles delete', function () {
     expect($sql)->toBe('DELETE FROM users WHERE id = ?');
 });
 
-// ─── Mongo Grammar Tests ─────────────────────────────────────────────────────
-
-test('MongoGrammar compiles basic select', function () {
-    $builder = mongo_builder()->table('users')->select('id', 'name')->where('active', true);
-    
-    $json = (new MongoGrammar())->compileSelect($builder);
-    $command = json_decode($json, true);
-    
-    expect($command['action'])->toBe('find')
-        ->and($command['table'])->toBe('users')
-        ->and($command['filter'])->toBe(['active' => '?'])
-        ->and($command['options']['projection'])->toBe(['id' => 1, 'name' => 1]);
-});
-
-test('MongoGrammar compiles advanced wheres', function () {
-    $builder = mongo_builder()->table('posts')
-        ->where('views', '>', 100)
-        ->whereIn('status', ['published', 'draft']);
-    
-    $json = (new MongoGrammar())->compileSelect($builder);
-    $command = json_decode($json, true);
-    
-    expect($command['filter']['views'])->toBe(['$gt' => '?'])
-        ->and($command['filter']['status'])->toBe(['$in' => ['?', '?']]);
-});
-
-test('grammars compile cursor comparison queries', function () {
+test('SqlGrammar compiles cursor comparison queries', function () {
     $sqlBuilder = sql_builder()->table('users')->where('id', '>', 10)->orderBy('id')->limit(26);
-    $mongoBuilder = mongo_builder()->table('users')->where('id', '<', 10)->orderBy('id', 'desc')->limit(26);
-    $mongo = json_decode((new MongoGrammar())->compileSelect($mongoBuilder), true);
 
     expect((new SqlGrammar())->compileSelect($sqlBuilder))
         ->toBe('SELECT * FROM users WHERE id > ? ORDER BY id asc LIMIT 26')
-        ->and($sqlBuilder->getBindings())->toBe([10])
-        ->and($mongo['filter']['id'])->toBe(['$lt' => '?'])
-        ->and($mongo['options']['sort']['id'])->toBe(-1)
-        ->and($mongo['options']['limit'])->toBe(26);
-});
-
-test('MongoGrammar compiles insert', function () {
-    $builder = mongo_builder()->table('users');
-    
-    $json = (new MongoGrammar())->compileInsert($builder, ['name' => 'Alice']);
-    $command = json_decode($json, true);
-    
-    expect($command['action'])->toBe('insertOne')
-        ->and($command['document'])->toBe(['name' => 'Alice']);
-});
-
-test('MongoGrammar compiles update', function () {
-    $builder = mongo_builder()->table('users')->where('id', 1);
-    
-    $json = (new MongoGrammar())->compileUpdate($builder, ['name' => 'Bob']);
-    $command = json_decode($json, true);
-    
-    expect($command['action'])->toBe('updateMany')
-        ->and($command['filter'])->toBe(['id' => '?'])
-        ->and($command['update']['$set'])->toBe(['name' => 'Bob']);
-});
-
-test('MongoGrammar compiles delete', function () {
-    $builder = mongo_builder()->table('users')->where('id', 1);
-    
-    $json = (new MongoGrammar())->compileDelete($builder);
-    $command = json_decode($json, true);
-    
-    expect($command['action'])->toBe('deleteMany')
-        ->and($command['filter'])->toBe(['id' => '?']);
+        ->and($sqlBuilder->getBindings())->toBe([10]);
 });

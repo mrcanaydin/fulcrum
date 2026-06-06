@@ -11,7 +11,7 @@ if [ -d ../core ]; then
     rm -f vendor/bin/fulcrum
     cp composer.json composer.smoke.json
     COMPOSER=composer.smoke.json composer config repositories.fulcrum-core '{"type":"path","url":"../core","options":{"symlink":false,"versions":{"fulcrum/core":"0.1.0"}}}'
-    COMPOSER=composer.smoke.json composer install --no-interaction --ignore-platform-req=ext-mongodb
+    COMPOSER=composer.smoke.json composer install --no-interaction
 else
     composer install --no-interaction
 fi

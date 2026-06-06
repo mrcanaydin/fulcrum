@@ -33,7 +33,7 @@ Expected response:
 ./scripts/smoke.sh
 ```
 
-The Docker stack runs Nginx, PHP-FPM, Redis, and MySQL. Nginx listens on `http://127.0.0.1:8080`.
+The Docker stack runs Nginx, PHP-FPM, Redis, and PostgreSQL. Nginx listens on `http://127.0.0.1:8080`.
 
 ## Structure
 

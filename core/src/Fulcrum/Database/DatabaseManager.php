@@ -6,11 +6,9 @@ namespace Fulcrum\Database;
 
 use PDO;
 use InvalidArgumentException;
-use MongoDB\Client as MongoClient;
 use Fulcrum\Foundation\Config;
 use Fulcrum\Database\Drivers\MysqlDriver;
 use Fulcrum\Database\Drivers\PostgresDriver;
-use Fulcrum\Database\Drivers\MongoDriver;
 
 /**
  * Factory and manager for database connections.
@@ -47,7 +45,6 @@ class DatabaseManager
             'mysql'  => $this->createMysqlConnection($config),
             'pgsql'  => $this->createPostgresConnection($config),
             'sqlite' => $this->createSqliteConnection($config),
-            'mongo'  => $this->createMongoConnection($config),
             default  => throw new InvalidArgumentException("Unsupported driver [{$config['driver']}]."),
         };
     }
@@ -94,24 +91,9 @@ class DatabaseManager
         return new PostgresDriver($pdo, $config['prefix'] ?? '');
     }
 
-    protected function createMongoConnection(array $config): MongoDriver
-    {
-        $dsn = $config['dsn'] ?? "mongodb://{$config['host']}:{$config['port']}";
-        
-        $options = [];
-        if (isset($config['username']) && isset($config['password'])) {
-            $options['username'] = $config['username'];
-            $options['password'] = $config['password'];
-        }
-
-        $client = new MongoClient($dsn, $options);
-
-        return new MongoDriver($client, $config['database']);
-    }
-
     public function getDefaultConnection(): string
     {
-        return $this->config->get('database.default', 'mysql');
+        return $this->config->get('database.default', 'pgsql');
     }
 
     /**
