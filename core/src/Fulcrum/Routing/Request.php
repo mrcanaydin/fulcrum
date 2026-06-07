@@ -112,15 +112,15 @@ final class Request
         $remoteAddress = $this->server('REMOTE_ADDR', '127.0.0.1');
         $remoteAddress = is_string($remoteAddress) ? $remoteAddress : '127.0.0.1';
 
-        if (in_array($remoteAddress, $trustedProxies, true)) {
+        if ($this->isTrustedProxy($remoteAddress, $trustedProxies)) {
             $forwardedFor = $this->header('x-forwarded-for');
 
             if ($forwardedFor !== null) {
                 $ips = array_map('trim', explode(',', $forwardedFor));
-                $first = $ips[0] ?? '';
-
-                if ($first !== '') {
-                    return $first;
+                foreach ($ips as $ip) {
+                    if (filter_var($ip, FILTER_VALIDATE_IP) !== false) {
+                        return $ip;
+                    }
                 }
             }
         }
@@ -256,6 +256,68 @@ final class Request
         }
 
         return $headers;
+    }
+
+    /** @param list<string> $trustedProxies */
+    private function isTrustedProxy(string $remoteAddress, array $trustedProxies): bool
+    {
+        foreach ($trustedProxies as $trustedProxy) {
+            if ($trustedProxy === '*') {
+                return true;
+            }
+
+            if ($trustedProxy === $remoteAddress || $this->ipInCidr($remoteAddress, $trustedProxy)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function ipInCidr(string $ip, string $cidr): bool
+    {
+        if (!str_contains($cidr, '/')) {
+            return false;
+        }
+
+        [$subnet, $prefixLength] = explode('/', $cidr, 2);
+
+        if (
+            filter_var($ip, FILTER_VALIDATE_IP) === false
+            || filter_var($subnet, FILTER_VALIDATE_IP) === false
+            || !ctype_digit($prefixLength)
+        ) {
+            return false;
+        }
+
+        $ipBinary = @inet_pton($ip);
+        $subnetBinary = @inet_pton($subnet);
+
+        if ($ipBinary === false || $subnetBinary === false || strlen($ipBinary) !== strlen($subnetBinary)) {
+            return false;
+        }
+
+        $prefix = (int) $prefixLength;
+        $maxPrefix = strlen($ipBinary) * 8;
+
+        if ($prefix < 0 || $prefix > $maxPrefix) {
+            return false;
+        }
+
+        $fullBytes = intdiv($prefix, 8);
+        $remainingBits = $prefix % 8;
+
+        if ($fullBytes > 0 && substr($ipBinary, 0, $fullBytes) !== substr($subnetBinary, 0, $fullBytes)) {
+            return false;
+        }
+
+        if ($remainingBits === 0) {
+            return true;
+        }
+
+        $mask = (0xFF << (8 - $remainingBits)) & 0xFF;
+
+        return (ord($ipBinary[$fullBytes]) & $mask) === (ord($subnetBinary[$fullBytes]) & $mask);
     }
 
     /**

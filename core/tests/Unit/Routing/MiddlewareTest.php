@@ -135,6 +135,26 @@ it('uses forwarded ip only for trusted proxies', function () {
         ->and($request->clientIp())->toBe('10.0.0.1');
 });
 
+it('supports cidr trusted proxies and ignores invalid forwarded values', function () {
+    $request = new Request('POST', '/graphql', [
+        'REMOTE_ADDR' => '10.42.0.12',
+        'HTTP_X_FORWARDED_FOR' => 'unknown, 203.0.113.7, 10.42.0.12',
+    ], []);
+
+    expect($request->clientIp(['10.42.0.0/16']))->toBe('203.0.113.7')
+        ->and($request->clientIp(['192.168.0.0/16']))->toBe('10.42.0.12');
+});
+
+it('supports ipv6 cidr trusted proxies', function () {
+    $request = new Request('POST', '/graphql', [
+        'REMOTE_ADDR' => '2001:db8::10',
+        'HTTP_X_FORWARDED_FOR' => '2001:db8:ffff::25, 2001:db8::10',
+    ], []);
+
+    expect($request->clientIp(['2001:db8::/32']))->toBe('2001:db8:ffff::25')
+        ->and($request->clientIp(['2001:dead::/32']))->toBe('2001:db8::10');
+});
+
 it('runs middleware in order around the handler', function () {
     $pipeline = new MiddlewarePipeline([
         new RequestIdMiddleware(),

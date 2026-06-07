@@ -123,7 +123,7 @@ class AuthMutation
 
     private function loginThrottleKey(string $email, RequestContext $context): string
     {
-        return 'login:' . hash('sha256', $email . '|' . $context->request()->clientIp());
+        return 'login:' . hash('sha256', $email . '|' . $context->request()->clientIp($this->trustedProxies()));
     }
 
     /** @return list<string> */
@@ -142,6 +142,16 @@ class AuthMutation
     private function requiresVerifiedEmail(): bool
     {
         return (bool) $this->config->get('auth.require_verified_email', false);
+    }
+
+    /** @return list<string> */
+    private function trustedProxies(): array
+    {
+        $trustedProxies = $this->config->get('api.trusted_proxies', []);
+
+        return is_array($trustedProxies)
+            ? array_values(array_filter($trustedProxies, 'is_string'))
+            : [];
     }
 
     private function invalidCredentials(): ClientException

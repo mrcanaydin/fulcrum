@@ -5,6 +5,10 @@ declare(strict_types=1);
 return [
     'default' => $_ENV['STORAGE_DISK'] ?? 'local',
     'signed_uploads' => [
+        'allowed_disks' => array_values(array_filter(array_map(
+            'trim',
+            explode(',', $_ENV['SIGNED_UPLOAD_ALLOWED_DISKS'] ?? ($_ENV['STORAGE_DISK'] ?? 'local'))
+        ))),
         'allowed_content_types' => array_values(array_filter(array_map(
             'trim',
             explode(',', $_ENV['SIGNED_UPLOAD_ALLOWED_CONTENT_TYPES'] ?? 'image/png,image/jpeg,image/webp,application/pdf')

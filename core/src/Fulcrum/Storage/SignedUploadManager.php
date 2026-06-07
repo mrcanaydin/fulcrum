@@ -15,6 +15,12 @@ class SignedUploadManager
     public function create(string $path, string $contentType, int $expiresIn = 900, ?string $disk = null): SignedUpload
     {
         $disk ??= $this->string('storage.default', 'local');
+        $allowedDisks = $this->allowedDisks();
+
+        if ($allowedDisks !== [] && !in_array($disk, $allowedDisks, true)) {
+            throw new ClientException('Signed upload disk is not allowed.', 'SIGNED_UPLOAD_DISK_NOT_ALLOWED');
+        }
+
         $settings = $this->config->get("storage.disks.{$disk}");
 
         if (!is_array($settings) || ($settings['driver'] ?? null) !== 's3') {
@@ -100,6 +106,18 @@ class SignedUploadManager
         return is_int($value) || is_string($value) || is_float($value)
             ? max(1, (int) $value)
             : $default;
+    }
+
+    /** @return list<string> */
+    private function allowedDisks(): array
+    {
+        $configured = $this->stringList($this->config->get('storage.signed_uploads.allowed_disks', []));
+
+        if ($configured !== []) {
+            return $configured;
+        }
+
+        return [$this->string('storage.default', 'local')];
     }
 
     /** @return list<string> */

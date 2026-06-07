@@ -37,6 +37,8 @@ The Docker stack runs Nginx, PHP-FPM, Redis, and PostgreSQL. Nginx listens on `h
 
 The smoke script is the reference production-readiness check for this template: it builds the containers, runs migrations, seeds demo data, executes one queued job, verifies liveness and readiness, and sends a GraphQL query through Nginx.
 
+Deployment and recovery runbooks live in [OPERATIONS.md](/mnt/Depo/fulcrum/skeleton/OPERATIONS.md:1).
+
 ## Structure
 
 - `public/index.php` boots the Fulcrum application.
@@ -201,7 +203,7 @@ mutation {
 
 The client uploads the file bytes directly to the returned `url` using the returned method and headers. GraphQL only issues short-lived upload instructions and never receives the file body.
 
-Signed uploads are restricted by `SIGNED_UPLOAD_ALLOWED_CONTENT_TYPES` and TTL bounds from `SIGNED_UPLOAD_MIN_TTL_SECONDS`/`SIGNED_UPLOAD_MAX_TTL_SECONDS`. Keep this list narrow for public APIs, especially when uploaded objects are served from a browser-accessible domain.
+Signed uploads are restricted by `SIGNED_UPLOAD_ALLOWED_DISKS`, `SIGNED_UPLOAD_ALLOWED_CONTENT_TYPES`, and TTL bounds from `SIGNED_UPLOAD_MIN_TTL_SECONDS`/`SIGNED_UPLOAD_MAX_TTL_SECONDS`. By default the skeleton only signs uploads against `STORAGE_DISK`; explicitly list any additional S3 disks you want to expose. Keep the disk and content-type lists narrow for public APIs, especially when uploaded objects are served from a browser-accessible domain.
 
 ## Authentication
 
@@ -226,7 +228,7 @@ mutation {
 }
 ```
 
-Send the returned token as `Authorization: Bearer {accessToken}`. The authenticated `logout` mutation revokes only the token used for that request. Configure expiry, abilities, verified-email requirements, and login throttling with the `AUTH_*` environment variables. Production applications should add their own registration approval, password reset, MFA, and identity-provider policies.
+Send the returned token as `Authorization: Bearer {accessToken}`. The authenticated `logout` mutation revokes only the token used for that request. Configure expiry, abilities, verified-email requirements, and login throttling with the `AUTH_*` environment variables. Login throttling keys by normalized email address plus client IP, so reverse-proxy deployments should set `TRUSTED_PROXIES` correctly to avoid collapsing many users onto the proxy hop. New passwords are hashed with PHP's default `password_hash()` algorithm and successful logins rehash older hashes automatically when needed. Production applications should add their own registration approval, password reset, MFA, and identity-provider policies.
 
 ### Roles And Permissions
 
@@ -266,7 +268,9 @@ Use `HEALTH_CHECK_DATABASE`, `HEALTH_CHECK_CACHE`, `HEALTH_CHECK_QUEUE`, and `HE
 Before adapting the skeleton for production, verify the deployment rather than only the PHP code:
 
 - Set `APP_ENV=production` and `APP_DEBUG=false`.
+- Treat `APP_DEBUG=true` as local-only; production traces can expose internal paths, class names, and configuration context.
 - Store database, Redis, SMTP, webhook, object-storage, and token secrets outside git.
+- Rotate application secrets and personal access tokens during credential changes or incident response instead of relying on long-lived shared values.
 - Run `php fulcrum migrate:status` before deploy and `php fulcrum migrate` once during deploy.
 - Use PostgreSQL or MySQL with backups, restore drills, and appropriate connection limits.
 - Use a shared Redis cache for rate limiting, persisted queries, and multi-instance behavior.
@@ -275,6 +279,7 @@ Before adapting the skeleton for production, verify the deployment rather than o
 - Ship JSON-line logs from `storage/logs` or configure another production log channel.
 - Review `CORS_ALLOWED_ORIGINS`, `TRUSTED_PROXIES`, `API_MAX_BODY_BYTES`, `RATE_LIMIT_*`, and `AUTH_*`.
 - In production, set exact `CORS_ALLOWED_ORIGINS`; leaving it unset emits no CORS allow-origin headers.
+- Set `TRUSTED_PROXIES` to exact IPs or CIDR ranges for your ingress layer; only those proxies may supply `X-Forwarded-For`.
 - Enable persisted-query allow-list mode for public APIs when clients can deploy an allow-list.
 - If using PgBouncer, prefer transaction pooling and avoid session-scoped PostgreSQL features in application code.
 

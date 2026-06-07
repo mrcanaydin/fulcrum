@@ -114,7 +114,7 @@ Supported drivers:
 - `local` via `league/flysystem-local`
 - `s3` via `league/flysystem-aws-s3-v3`
 
-Authenticated callers with the `uploads:create` ability can request an S3-compatible direct PUT URL through the built-in `createSignedUpload` mutation. The returned URL and required headers are used by the client to upload directly to object storage, so file bytes never pass through GraphQL or PHP. Signed uploads intentionally reject local disks.
+Authenticated callers with the `uploads:create` ability can request an S3-compatible direct PUT URL through the built-in `createSignedUpload` mutation. The returned URL and required headers are used by the client to upload directly to object storage, so file bytes never pass through GraphQL or PHP. Signed uploads intentionally reject local disks and default to the configured storage disk unless `storage.signed_uploads.allowed_disks` explicitly permits additional disks.
 
 ## Subscriptions
 
@@ -530,6 +530,7 @@ Minimum framework release gates:
 Application deployment checklist:
 
 - `APP_DEBUG=false` and production secrets supplied outside the repository.
+- Treat `APP_DEBUG=true` as a sensitive local-only mode because exception traces may expose internal class names, file paths, and configuration context.
 - HTTPS/TLS termination configured by the platform or reverse proxy.
 - Database migrations reviewed, backed up, and run exactly once per deployment.
 - Shared cache configured for rate limiting and persisted queries in multi-instance deployments.
@@ -543,7 +544,13 @@ Connection pooling such as PgBouncer is a deployment optimization rather than fr
 
 Production CORS should list exact origins. Fulcrum omits CORS headers for disallowed origins and rejects disallowed preflight requests instead of falling back to another configured origin.
 
-Personal access tokens cannot delegate abilities beyond the current token. Signed uploads should use a narrow content-type allow-list and short TTLs, especially for browser-accessible object storage.
+Personal access tokens cannot delegate abilities beyond the current token. Configure short enough token TTLs for the client and risk profile you operate, and rotate leaked or retired token-signing inputs by revoking and reissuing tokens from the application layer.
+
+Applications should hash user passwords with PHP's `password_hash()` and let successful logins rehash old hashes when `password_needs_rehash()` says the default algorithm has moved forward.
+
+Signed uploads should use a narrow disk allow-list, narrow content-type allow-list, and short TTLs, especially for browser-accessible object storage.
+
+`TRUSTED_PROXIES` accepts exact IPs or CIDR ranges. Only requests arriving from those proxy addresses may influence client IP resolution through `X-Forwarded-For`.
 
 ## Database Portability
 

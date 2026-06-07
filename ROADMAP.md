@@ -205,7 +205,7 @@ Done when: supported relational databases pass the same migration, rollback, que
 
 ## Sprint 16: Security Review And Hardening
 
-Status: In Progress
+Status: Complete
 
 Goal: reduce the risk of unsafe defaults or framework-level security regressions.
 
@@ -219,7 +219,7 @@ Done when: a production-configured skeleton fails closed for auth, validation, e
 
 ## Sprint 17: Operations And Deployment Guides
 
-Status: Planned
+Status: Complete
 
 Goal: make Fulcrum applications straightforward to run, observe, and recover in production.
 
